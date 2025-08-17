@@ -9,10 +9,12 @@ import requests
 from colorama import init,Fore, Style
 import urllib3
 import sys
+from datetime import datetime
 
 # import custom modules
 from src.header_checker import check_security_headers
 from src.exporter import export_results
+from src.ssl_checker import analyze_ssl_security
 
 init(autoreset=True)
 
@@ -26,6 +28,8 @@ def main():
         python main.py https://example.com
         python main.py https://example.com --verbose
         python main.py https://example.com --output results.txt
+        python main.py https://example.com --ssl-check
+        python main.py https://example.com --ssl-only
         python main.py https://example.com --timeout 10
         python main.py https://example.com --user-agent "Example User-Agent"
         python main.py https://example.com --version
@@ -99,6 +103,19 @@ def main():
         default=True,
         help='Verify SSL certificates (default: True)',
     )
+
+    # SSL/TLS analysis options
+    parser.add_argument(
+        '--ssl-check',
+        action='store_true',
+        help='Enable SSL/TLS security analysis',
+    )
+
+    parser.add_argument(
+        '--ssl-only',
+        action='store_true',
+        help='Perform only SSL/TLS analysis (skip header checks)',
+    )
     
     parser.add_argument(
         '--no-verify-ssl',
@@ -128,37 +145,50 @@ def main():
         sys.exit(1)
 
 
-    print(f"{Fore.CYAN}🔍 Checking the security of the site: {args.url}{Style.RESET_ALL}")
+    # Determine what to check
+    check_headers = not args.ssl_only
+    check_ssl = args.ssl_check or args.ssl_only
     
-    # Display request settings in verbose mode
-    if args.verbose:
-        print(f"{Fore.CYAN}🔧 Request Settings:{Style.RESET_ALL}")
-        print(f"  Timeout: {args.timeout} seconds")
-        print(f"  User-Agent: {args.user_agent}")
-        print(f"  Follow redirects: {args.follow_redirects}")
-        print(f"  Max redirects: {args.max_redirects}")
-        print(f"  Verify SSL: {args.verify_ssl}")
-        print()
+    if check_headers:
+        print(f"{Fore.CYAN}🔍 Checking the security of the site: {args.url}{Style.RESET_ALL}")
+        
+        # Display request settings in verbose mode
+        if args.verbose:
+            print(f"{Fore.CYAN}🔧 Request Settings:{Style.RESET_ALL}")
+            print(f"  Timeout: {args.timeout} seconds")
+            print(f"  User-Agent: {args.user_agent}")
+            print(f"  Follow redirects: {args.follow_redirects}")
+            print(f"  Max redirects: {args.max_redirects}")
+            print(f"  Verify SSL: {args.verify_ssl}")
+            print()
 
-    # Check headers security with new parameters
-    results = check_security_headers(
-        args.url,
-        timeout=args.timeout,
-        user_agent=args.user_agent,
-        follow_redirects=args.follow_redirects,
-        max_redirects=args.max_redirects,
-        verify_ssl=args.verify_ssl
-    )
+        # Check headers security with new parameters
+        results = check_security_headers(
+            args.url,
+            timeout=args.timeout,
+            user_agent=args.user_agent,
+            follow_redirects=args.follow_redirects,
+            max_redirects=args.max_redirects,
+            verify_ssl=args.verify_ssl
+        )
 
-    if not results['success']:
-        print(f"{Fore.RED}❌ Error: {results['error']}{Style.RESET_ALL}")
-        sys.exit(1)
+        if not results['success']:
+            print(f"{Fore.RED}❌ Error: {results['error']}{Style.RESET_ALL}")
+            sys.exit(1)
+    else:
+        results = None
     
-    # print results
-    print(f"\n{Fore.GREEN}📊 Security Check Results:{Style.RESET_ALL}")
-    print(f"URL: {results['url']}")
-    print(f"Total Score: {results['total_score']}/{results['max_score']}")
-    print(f"Security Percentage: {(results['total_score'] / results['max_score'] * 100):.1f}%")
+    # SSL/TLS Analysis
+    ssl_results = None
+    if check_ssl:
+        ssl_results = analyze_ssl_security(args.url, args.timeout)
+    
+    # Print results
+    if check_headers and results:
+        print(f"\n{Fore.GREEN}📊 Security Header Check Results:{Style.RESET_ALL}")
+        print(f"URL: {results['url']}")
+        print(f"Total Score: {results['total_score']}/{results['max_score']}")
+        print(f"Security Percentage: {(results['total_score'] / results['max_score'] * 100):.1f}%")
     
     print(f"\n{Fore.YELLOW}📋 Detailed Report:{Style.RESET_ALL}")
     print("-" * 60)
@@ -178,21 +208,75 @@ def main():
     print(f"❌ Issues: {results['summary']['bad']}")
     print(f"ℹ️ Info: {results['summary']['info']}")
     
-    # Security assessment
-    percentage = (results['total_score'] / results['max_score']) * 100
-    if percentage >= 80:
-        print(f"\n{Fore.GREEN}🎉 Excellent security!{Style.RESET_ALL}")
-    elif percentage >= 60:
-        print(f"\n{Fore.YELLOW}⚠️ Average security{Style.RESET_ALL}")
-    else:
-        print(f"\n{Fore.RED}🚨 Low security!{Style.RESET_ALL}")
+    # Security assessment for headers
+    if check_headers and results:
+        percentage = (results['total_score'] / results['max_score']) * 100
+        if percentage >= 80:
+            print(f"\n{Fore.GREEN}🎉 Excellent header security!{Style.RESET_ALL}")
+        elif percentage >= 60:
+            print(f"\n{Fore.YELLOW}⚠️ Average header security{Style.RESET_ALL}")
+        else:
+            print(f"\n{Fore.RED}🚨 Low header security!{Style.RESET_ALL}")
+    
+    # SSL/TLS Results
+    if check_ssl and ssl_results:
+        print(f"\n{Fore.GREEN}🔒 SSL/TLS Security Results:{Style.RESET_ALL}")
+        print(f"URL: {ssl_results['url']}")
+        print(f"SSL Score: {ssl_results['score']['total_score']}/{ssl_results['score']['max_score']}")
+        print(f"SSL Percentage: {ssl_results['score']['percentage']}%")
+        print(f"Security Level: {ssl_results['score']['level_emoji']} {ssl_results['score']['security_level']}")
+        
+        print(f"\n{Fore.YELLOW}📋 SSL/TLS Details:{Style.RESET_ALL}")
+        print("-" * 60)
+        
+        # Certificate information
+        if ssl_results['certificate']['success']:
+            cert = ssl_results['certificate']
+            print(f"📜 Certificate Information:")
+            print(f"  Subject: {cert.get('subject', {}).get('commonName', 'Unknown')}")
+            print(f"  Issuer: {cert.get('issuer', {}).get('commonName', 'Unknown')}")
+            print(f"  Expires: {cert.get('not_after', 'Unknown')}")
+            print(f"  Valid: {'✅ Yes' if not cert.get('is_expired') else '❌ No'}")
+            print(f"  Hostname Match: {'✅ Yes' if cert.get('hostname_valid') else '❌ No'}")
+        
+        # Protocol information
+        if ssl_results['protocols']['success']:
+            print(f"\n🛡️ TLS Protocols:")
+            for protocol, info in ssl_results['protocols']['protocols'].items():
+                status = "✅ Supported" if info['supported'] else "❌ Not supported"
+                print(f"  {protocol}: {status}")
+        
+        # Cipher information
+        if ssl_results['ciphers']['success']:
+            ciphers = ssl_results['ciphers']
+            print(f"\n🔐 Cipher Suites:")
+            print(f"  Current Cipher: {ciphers.get('current_cipher', 'Unknown')}")
+            print(f"  Cipher Version: {ciphers.get('cipher_version', 'Unknown')}")
+            print(f"  Cipher Bits: {ciphers.get('cipher_bits', 'Unknown')}")
+        
+        # SSL Security assessment
+        ssl_percentage = ssl_results['score']['percentage']
+        if ssl_percentage >= 80:
+            print(f"\n{Fore.GREEN}🎉 Excellent SSL/TLS security!{Style.RESET_ALL}")
+        elif ssl_percentage >= 60:
+            print(f"\n{Fore.YELLOW}⚠️ Average SSL/TLS security{Style.RESET_ALL}")
+        else:
+            print(f"\n{Fore.RED}🚨 Low SSL/TLS security!{Style.RESET_ALL}")
         
 
     # Save results to file
     if args.output:
         print(f"\n{Fore.CYAN}💾 Saving results to {args.output}...{Style.RESET_ALL}")
         
-        if export_results(results, args.output):
+        # Combine results for export
+        export_data = {
+            'url': args.url,
+            'headers': results if check_headers else None,
+            'ssl': ssl_results if check_ssl else None,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if export_results(export_data, args.output):
             print(f"{Fore.GREEN}✅ Results saved successfully!{Style.RESET_ALL}")
         else:
             print(f"{Fore.RED}❌ Error: Failed to save results{Style.RESET_ALL}")
