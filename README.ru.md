@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version0.0.1-orange.svg)]()
+[![Wiki](https://img.shields.io/badge/Wiki-План%20разработки-brightgreen.svg)](https://github.com/AkylKj/CH_Header/wiki/Roadmap)
 
 **Мощный CLI инструмент для анализа заголовков безопасности веб-сайтов и предоставления детальной оценки безопасности**
 
@@ -148,7 +149,7 @@ security-header-checker/
 ├── requirements.txt        # Python зависимости
 ├── README.md              # Английская документация
 ├── README.ru.md           # Этот файл (Русский)
-├── ROADMAP.md             # План разработки
+├── [📋 Roadmap Wiki](https://github.com/AkylKj/CH_Header/wiki/Roadmap)  # План разработки
 └── src/
     ├── __init__.py
     ├── header_checker.py  # Анализ заголовков безопасности
@@ -168,7 +169,7 @@ security-header-checker/
 
 ## 🚀 План разработки
 
-Смотрите [ROADMAP.md](ROADMAP.md) для детальных планов разработки.
+Смотрите наш [📋 План разработки](https://github.com/AkylKj/CH_Header/wiki/Roadmap) для детальных планов разработки и предстоящих функций.
 
 ### Предстоящие функции
 - 🔄 Массовая проверка сайтов

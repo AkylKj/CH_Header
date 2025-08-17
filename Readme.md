@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-0.0.1-orange.svg)]()
+[![Wiki](https://img.shields.io/badge/Wiki-Roadmap-brightgreen.svg)](https://github.com/AkylKj/CH_Header/wiki/Roadmap)
 
 **A powerful CLI tool for analyzing website security headers and providing detailed security assessments**
 
@@ -148,7 +149,7 @@ security-header-checker/
 ├── requirements.txt        # Python dependencies
 ├── README.md              # This file (English)
 ├── README.ru.md           # Russian documentation
-├── ROADMAP.md             # Development roadmap
+├── [📋 Roadmap Wiki](https://github.com/AkylKj/CH_Header/wiki/Roadmap)  # Development roadmap
 └── src/
     ├── __init__.py
     ├── header_checker.py  # Security header analysis
@@ -168,7 +169,7 @@ Tabular data suitable for spreadsheet analysis and reporting.
 
 ## 🚀 Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for detailed development plans.
+See our [📋 Development Roadmap](https://github.com/AkylKj/CH_Header/wiki/Roadmap) for detailed development plans and upcoming features.
 
 ### Upcoming Features
 - 🔄 Mass website checking
