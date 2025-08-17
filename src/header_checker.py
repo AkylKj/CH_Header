@@ -11,37 +11,93 @@ SECURE_HEADERS = {
     'Strict-Transport-Security': {
         'description': 'Enforces the use of HTTPS',
         'good_values': ['max-age=31536000', 'max-age=63072000'],
-        'score': 10
+        'score': 10,
+        'type': 'presence'
     },
     'Content-Security-Policy': {
         'description': 'Content security policy to prevent XSS and data injection attacks',
         'good_values': ['default-src', 'script-src', 'style-src'],
-        'score': 15
+        'score': 15,
+        'type': 'presence'
     },
     'X-Frame-Options': {
         'description': 'Protection against clickjacking',
         'good_values': ['DENY', 'SAMEORIGIN'],
-        'score': 8
+        'score': 8,
+        'type': 'presence'
     },
     'X-Content-Type-Options': {
         'description': 'Prevents MIME-sniffing',
         'good_values': ['nosniff'],
-        'score': 5
+        'score': 5,
+        'type': 'presence'
     },
     'X-XSS-Protection': {
         'description': 'Protection against XSS attacks',
         'good_values': ['1', '1; mode=block'],
-        'score': 5
+        'score': 5,
+        'type': 'presence'
     },
     'Referrer-Policy': {
         'description': 'Controls the information sent in the Referer header',
         'good_values': ['strict-origin', 'strict-origin-when-cross-origin'],
-        'score': 3
+        'score': 3,
+        'type': 'presence'
     },
     'Permissions-Policy': {
         'description': 'Controls access to browser features',
         'good_values': ['geolocation', 'camera', 'microphone'],
-        'score': 4
+        'score': 4,
+        'type': 'presence'
+    },
+    # Новые заголовки для v0.0.3
+    'Server': {
+        'description': 'Information about web server (should be hidden for security)',
+        'good_values': [],
+        'score': 2,
+        'type': 'absence'
+    },
+    'X-Powered-By': {
+        'description': 'Information about technologies used (should be hidden)',
+        'good_values': [],
+        'score': 2,
+        'type': 'absence'
+    },
+    'Cache-Control': {
+        'description': 'Cache control policy for security',
+        'good_values': ['no-store', 'no-cache', 'private'],
+        'score': 3,
+        'type': 'presence'
+    },
+    'Set-Cookie': {
+        'description': 'Cookie security settings',
+        'good_values': ['Secure', 'HttpOnly', 'SameSite'],
+        'score': 4,
+        'type': 'flags'
+    },
+    'Clear-Site-Data': {
+        'description': 'Clear site data policy',
+        'good_values': ['cache', 'cookies', 'storage'],
+        'score': 3,
+        'type': 'presence'
+    },
+    'Cross-Origin-Embedder-Policy': {
+        'description': 'Cross-origin embedder policy',
+        'good_values': ['require-corp'],
+        'score': 3,
+        'type': 'presence'
+    },
+    'Cross-Origin-Opener-Policy': {
+        'description': 'Cross-origin opener policy',
+        'good_values': ['same-origin'],
+        'score': 3,
+        'type': 'presence'
+    },
+    'Cross-Origin-Resource-Policy': {
+        'description': 'Cross-origin resource policy',
+        'good_values': ['same-origin', 'same-site'],
+        'score': 3,
+        'type': 'presence'
     }
 }
 
@@ -118,14 +174,35 @@ def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
         return 0, "INFO", f"Unknown header: {header_name}"
 
     header_info = SECURE_HEADERS[header_name]
-    value = header_value.lower()
-
-    # Check if header value is in good_values
-    for good_value in header_info['good_values']:
-        if good_value.lower() in value:
-            return header_info['score'], "GOOD", f"✅ {header_info['description']}"
+    header_type = header_info.get('type', 'presence')  
+    
+    if header_type == 'absence':
         
-    return 0, "BAD", f"❌ {header_info['description']}"
+        return 0, "BAD", f"❌ {header_info['description']} - should be hidden"
+    
+    elif header_type == 'flags':
+        
+        value = header_value.lower()
+        found_flags = 0
+        for flag in header_info['good_values']:
+            if flag.lower() in value:
+                found_flags += 1
+        
+        if found_flags >= 2: 
+            return header_info['score'], "GOOD", f"✅ {header_info['description']}"
+        elif found_flags >= 1:
+            return header_info['score'] // 2, "WARNING", f"⚠️ {header_info['description']} - partial security"
+        else:
+            return 0, "BAD", f"❌ {header_info['description']} - no security flags"
+    
+    else:  
+        
+        value = header_value.lower()
+        for good_value in header_info['good_values']:
+            if good_value.lower() in value:
+                return header_info['score'], "GOOD", f"✅ {header_info['description']}"
+        
+        return 0, "BAD", f"❌ {header_info['description']}"
     
 
 def check_security_headers(
@@ -166,25 +243,51 @@ def check_security_headers(
     }
 
     for header_name in SECURE_HEADERS:
+        header_info = SECURE_HEADERS[header_name]
+        header_type = header_info.get('type', 'presence')
+        
         if header_name in headers:
-            score, status, description = analyze_header(header_name, headers[header_name])
-            results['headers'][header_name] = {
-                'value': headers[header_name],
-                'score': score,
-                'status': status,
-                'description': description,
-            }
-            results['total_score'] += score
-            results['summary'][status.lower()] += 1
+            if header_type == 'absence':
+                
+                score, status, description = analyze_header(header_name, headers[header_name])
+                results['headers'][header_name] = {
+                    'value': headers[header_name],
+                    'score': score,
+                    'status': status,
+                    'description': description,
+                }
+                results['total_score'] += score
+                results['summary'][status.lower()] += 1
+            else:
+               
+                score, status, description = analyze_header(header_name, headers[header_name])
+                results['headers'][header_name] = {
+                    'value': headers[header_name],
+                    'score': score,
+                    'status': status,
+                    'description': description,
+                }
+                results['total_score'] += score
+                results['summary'][status.lower()] += 1
         
         else:
-            results['headers'][header_name] = {
-                'value': 'Not found',
-                'score': 0,
-                'status': 'BAD',
-                'description': f"❌ {SECURE_HEADERS[header_name]['description']} - not found",
-            }
-            results['summary']['bad'] += 1
+            if header_type == 'absence':
+                results['headers'][header_name] = {
+                    'value': 'Not found',
+                    'score': header_info['score'],
+                    'status': 'GOOD',
+                    'description': f"✅ {header_info['description']} - properly hidden",
+                }
+                results['total_score'] += header_info['score']
+                results['summary']['good'] += 1
+            else:
+                results['headers'][header_name] = {
+                    'value': 'Not found',
+                    'score': 0,
+                    'status': 'BAD',
+                    'description': f"❌ {header_info['description']} - not found",
+                }
+                results['summary']['bad'] += 1
     
     return results
 
