@@ -1,6 +1,3 @@
-"""
-Module for checking the security of the site
-"""
 
 import requests
 from typing import Dict, List, Optional

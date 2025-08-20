@@ -1,7 +1,3 @@
-"""
-Module for SSL/TLS security analysis
-"""
-
 import ssl
 import socket
 from datetime import datetime
@@ -33,15 +29,7 @@ SSL_SECURITY_CONFIG = {
 }
 
 def get_hostname_and_port(url: str) -> Tuple[str, int]:
-    """
-    Extract hostname and port from URL
-    
-    Args:
-        url (str): URL to parse
-        
-    Returns:
-        Tuple[str, int]: (hostname, port)
-    """
+
     # Remove protocol
     if url.startswith('https://'):
         url = url[8:]
@@ -61,16 +49,7 @@ def get_hostname_and_port(url: str) -> Tuple[str, int]:
     return hostname, port
 
 def check_ssl_certificate(url: str, timeout: int = 10) -> Dict:
-    """
-    Check SSL certificate information
-    
-    Args:
-        url (str): URL to check
-        timeout (int): Connection timeout
-        
-    Returns:
-        Dict: Certificate information
-    """
+
     try:
         hostname, port = get_hostname_and_port(url)
         
@@ -124,16 +103,7 @@ def check_ssl_certificate(url: str, timeout: int = 10) -> Dict:
         }
 
 def check_tls_protocols(url: str, timeout: int = 10) -> Dict:
-    """
-    Check supported TLS protocols
-    
-    Args:
-        url (str): URL to check
-        timeout (int): Connection timeout
-        
-    Returns:
-        Dict: Supported protocols information
-    """
+
     hostname, port = get_hostname_and_port(url)
     supported_protocols = {}
     
@@ -173,16 +143,6 @@ def check_tls_protocols(url: str, timeout: int = 10) -> Dict:
     }
 
 def check_cipher_suites(url: str, timeout: int = 10) -> Dict:
-    """
-    Check available cipher suites
-    
-    Args:
-        url (str): URL to check
-        timeout (int): Connection timeout
-        
-    Returns:
-        Dict: Cipher suites information
-    """
     try:
         hostname, port = get_hostname_and_port(url)
         
@@ -200,7 +160,7 @@ def check_cipher_suites(url: str, timeout: int = 10) -> Dict:
                 medium_ciphers = []
                 weak_ciphers = []
                 
-                # Simple categorization based on cipher name
+                
                 cipher_name = cipher[0].lower()
                 
                 if any(strong in cipher_name for strong in ['aes_256', 'chacha20', 'aes_128_gcm']):
@@ -227,22 +187,11 @@ def check_cipher_suites(url: str, timeout: int = 10) -> Dict:
         }
 
 def calculate_ssl_score(cert_info: Dict, protocols_info: Dict, ciphers_info: Dict) -> Dict:
-    """
-    Calculate SSL/TLS security score
-    
-    Args:
-        cert_info (Dict): Certificate information
-        protocols_info (Dict): Protocols information
-        ciphers_info (Dict): Cipher suites information
-        
-    Returns:
-        Dict: Security score and details
-    """
     total_score = 0
     max_score = 100
     details = []
     
-    # Certificate checks
+    # Checks
     if cert_info.get('success'):
         if not cert_info.get('is_expired'):
             total_score += SSL_SECURITY_CONFIG['certificate_checks']['not_expired']['score']
@@ -315,16 +264,7 @@ def calculate_ssl_score(cert_info: Dict, protocols_info: Dict, ciphers_info: Dic
     }
 
 def analyze_ssl_security(url: str, timeout: int = 10) -> Dict:
-    """
-    Complete SSL/TLS security analysis
-    
-    Args:
-        url (str): URL to analyze
-        timeout (int): Connection timeout
-        
-    Returns:
-        Dict: Complete SSL/TLS analysis results
-    """
+
     print(f"{Fore.CYAN}🔒 Analyzing SSL/TLS security for: {url}{Style.RESET_ALL}")
     
     # Perform all checks

@@ -1,6 +1,3 @@
-"""
-Module for bulk checking multiple websites
-"""
 
 import asyncio
 import aiohttp

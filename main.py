@@ -16,6 +16,7 @@ from src.header_checker import check_security_headers
 from src.exporter import export_results
 from src.ssl_checker import analyze_ssl_security
 from src.bulk_checker import BulkChecker
+from src.response_analyzer import ResponseAnalyzer
 
 init(autoreset=True)
 
@@ -32,6 +33,8 @@ def main():
         python main.py https://example.com --output results.txt
         python main.py https://example.com --ssl-check
         python main.py https://example.com --ssl-only
+        python main.py https://example.com --response-analysis
+        python main.py https://example.com --response-only
         python main.py https://example.com --timeout 10
         python main.py https://example.com --user-agent "Example User-Agent"
         
@@ -40,6 +43,7 @@ def main():
         python main.py --file urls.txt --parallel 5
         python main.py --file urls.txt --ssl-check --parallel 3 --output bulk_results.json
         python main.py --urls "https://example.com,https://test.com" --batch-size 10
+        python main.py --file urls.txt --response-analysis --parallel 3
         
         python main.py https://example.com --version
         """
@@ -132,6 +136,19 @@ def main():
         help='Do not verify SSL certificates',
     )
 
+    # Response analysis options
+    parser.add_argument(
+        '--response-analysis',
+        action='store_true',
+        help='Enable detailed HTTP response analysis',
+    )
+
+    parser.add_argument(
+        '--response-only',
+        action='store_true',
+        help='Perform only response analysis (skip other checks)',
+    )
+
     # options for mass checking
     parser.add_argument(
         '--file','-f',
@@ -205,8 +222,9 @@ def main():
 
 
     # Determine what to check
-    check_headers = not args.ssl_only
+    check_headers = not args.ssl_only and not args.response_only
     check_ssl = args.ssl_check or args.ssl_only
+    check_response = args.response_analysis or args.response_only
     
     # Check multiple sites
     if len(urls_to_check) > 1:
@@ -233,6 +251,21 @@ def main():
             max_redirects=args.max_redirects,
             verify_ssl=args.verify_ssl
         )
+        
+        # Add response analysis if requested
+        if check_response:
+            analyzer = ResponseAnalyzer()
+            for result in results_list:
+                if result['success']:
+                    response_result = analyzer.analyze_response_headers(
+                        result['url'],
+                        timeout=args.timeout,
+                        user_agent=args.user_agent,
+                        follow_redirects=args.follow_redirects,
+                        max_redirects=args.max_redirects,
+                        verify_ssl=args.verify_ssl
+                    )
+                    result['response'] = response_result
         
         # Generate summary report
         summary = checker.generate_summary_report(results_list)
@@ -266,6 +299,13 @@ def main():
                 ssl_percentage = result['ssl']['score']['percentage']
                 print(f"   SSL Score: {ssl_score}/{result['ssl']['score']['max_score']} ({ssl_percentage:.1f}%)")
             
+            if result.get('response') and result['response']['success']:
+                resp = result['response']
+                print(f"   Status: {resp['status_code']} - {resp['status_message']}")
+                print(f"   Response Time: {resp['response_time']:.3f}s")
+                if resp['server_info'].get('detected_type'):
+                    print(f"   Server: {resp['server_info']['detected_type']}")
+            
             if result['error']:
                 print(f"   Error: {result['error']}")
             print()
@@ -288,6 +328,7 @@ def main():
             export_data = {
                 'summary': summary,
                 'results': results_list,
+                'response_analysis_enabled': check_response,
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -334,6 +375,53 @@ def main():
     ssl_results = None
     if check_ssl:
         ssl_results = analyze_ssl_security(single_url, args.timeout)
+    
+    # Response Analysis
+    response_results = None
+    if check_response:
+        print(f"{Fore.CYAN}📡 Analyzing HTTP response for: {single_url}{Style.RESET_ALL}")
+        
+        analyzer = ResponseAnalyzer()
+        response_results = analyzer.analyze_response_headers(
+            single_url,
+            timeout=args.timeout,
+            user_agent=args.user_agent,
+            follow_redirects=args.follow_redirects,
+            max_redirects=args.max_redirects,
+            verify_ssl=args.verify_ssl
+        )
+        
+        if response_results['success']:
+            print(f"\n{Fore.GREEN}📊 HTTP Response Analysis:{Style.RESET_ALL}")
+            print(f"Status Code: {response_results['status_code']} - {response_results['status_message']}")
+            print(f"Response Time: {response_results['response_time']:.3f} seconds")
+            
+            # Server information
+            if response_results['server_info']:
+                print(f"\n{Fore.YELLOW}🖥️ Server Information:{Style.RESET_ALL}")
+                if 'server' in response_results['server_info']:
+                    print(f"Server: {response_results['server_info']['server']}")
+                if 'detected_type' in response_results['server_info']:
+                    print(f"Detected Type: {response_results['server_info']['detected_type']}")
+            
+            # Security headers summary
+            security_present = sum(1 for h in response_results['security_headers'].values() if h['present'])
+            total_security = len(response_results['security_headers'])
+            print(f"\n{Fore.CYAN}🔒 Security Headers: {security_present}/{total_security} present{Style.RESET_ALL}")
+            
+            # Redirect chain
+            if response_results['redirect_chain']:
+                print(f"\n{Fore.YELLOW}🔄 Redirect Chain:{Style.RESET_ALL}")
+                for i, redirect in enumerate(response_results['redirect_chain'], 1):
+                    print(f"  {i}. {redirect['url']} ({redirect['status_code']})")
+            
+            # Additional headers
+            if response_results['additional_headers']:
+                print(f"\n{Fore.BLUE}📋 Additional Headers:{Style.RESET_ALL}")
+                for header, value in response_results['additional_headers'].items():
+                    print(f"  {header}: {value}")
+        else:
+            print(f"{Fore.RED}❌ Error analyzing response: {response_results['error']}{Style.RESET_ALL}")
     
     # Print results
     if check_headers and results:
@@ -425,6 +513,7 @@ def main():
             'url': single_url,
             'headers': results if check_headers else None,
             'ssl': ssl_results if check_ssl else None,
+            'response': response_results if check_response else None,
             'timestamp': datetime.now().isoformat()
         }
         
