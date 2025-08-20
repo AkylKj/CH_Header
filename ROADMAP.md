@@ -95,15 +95,15 @@ CLI приложение для проверки безопасности веб
   - [ ] Проверка на опасные значения (max-age=0, unsafe-inline)
   - [ ] Анализ качества Referrer-Policy значений
 
-- [ ] **Новые заголовки безопасности**
-  - [ ] `Access-Control-Allow-Origin` - CORS политика
-  - [ ] `Access-Control-Allow-Methods` - разрешенные методы
-  - [ ] `Access-Control-Allow-Headers` - разрешенные заголовки
-  - [ ] `Access-Control-Max-Age` - кэширование CORS
-  - [ ] `X-Download-Options` - защита от загрузки
-  - [ ] `X-Permitted-Cross-Domain-Policies` - cross-domain политика
-  - [ ] `X-Requested-With` - AJAX запросы
-  - [ ] `X-UA-Compatible` - совместимость браузеров
+- [x] **Новые заголовки безопасности**
+  - [x] `Access-Control-Allow-Origin` - CORS политика
+  - [x] `Access-Control-Allow-Methods` - разрешенные методы
+  - [x] `Access-Control-Allow-Headers` - разрешенные заголовки
+  - [x] `Access-Control-Max-Age` - кэширование CORS
+  - [x] `X-Download-Options` - защита от загрузки
+  - [x] `X-Permitted-Cross-Domain-Policies` - cross-domain политика
+  - [x] `X-Requested-With` - AJAX запросы
+  - [x] `X-UA-Compatible` - совместимость браузеров
 
 - [ ] **HTTP методы анализ**
   - [ ] OPTIONS запросы - проверка доступных методов

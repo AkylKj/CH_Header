@@ -113,7 +113,10 @@ class ResponseAnalyzer:
         security_headers = [
             'Strict-Transport-Security', 'Content-Security-Policy', 'X-Frame-Options',
             'X-Content-Type-Options', 'X-XSS-Protection', 'Referrer-Policy',
-            'Permissions-Policy', 'Cache-Control', 'Set-Cookie', 'Clear-Site-Data',
+            'Permissions-Policy', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Methods',
+            'Access-Control-Allow-Headers', 'Access-Control-Max-Age', 'X-Download-Options',
+            'X-Permitted-Cross-Domain-Policies', 'X-Requested-With', 'X-UA-Compatible',
+            'Cache-Control', 'Set-Cookie', 'Clear-Site-Data',
             'Cross-Origin-Embedder-Policy', 'Cross-Origin-Opener-Policy',
             'Cross-Origin-Resource-Policy'
         ]
@@ -134,8 +137,7 @@ class ResponseAnalyzer:
         additional_headers = [
             'Content-Type', 'Content-Length', 'Last-Modified', 'ETag',
             'Accept-Ranges', 'Connection', 'Keep-Alive', 'Date',
-            'Vary', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Methods',
-            'Access-Control-Allow-Headers', 'Access-Control-Max-Age'
+            'Vary'
         ]
         
         for header in additional_headers:

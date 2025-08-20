@@ -47,7 +47,54 @@ SECURE_HEADERS = {
         'score': 4,
         'type': 'presence'
     },
-    
+    'Access-Control-Allow-Origin': {
+        'description': 'CORS policy for cross-origin requests',
+        'good_values': ['*', 'https://', 'http://'],
+        'score': 3,
+        'type': 'presence'
+    },
+    'Access-Control-Allow-Methods': {
+        'description': 'Allowed HTTP methods for CORS',
+        'good_values': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        'score': 2,
+        'type': 'presence'
+    },
+    'Access-Control-Allow-Headers': {
+        'description': 'Allowed headers for CORS requests',
+        'good_values': ['Content-Type', 'Authorization', 'X-Requested-With'],
+        'score': 2,
+        'type': 'presence'
+    },
+    'Access-Control-Max-Age': {
+        'description': 'CORS preflight caching duration',
+        'good_values': ['86400', '3600', '1800'],
+        'score': 2,
+        'type': 'presence'
+    },
+    'X-Download-Options': {
+        'description': 'Protection against file download attacks',
+        'good_values': ['noopen'],
+        'score': 3,
+        'type': 'presence'
+    },
+    'X-Permitted-Cross-Domain-Policies': {
+        'description': 'Cross-domain policy for Adobe products',
+        'good_values': ['none', 'master-only', 'by-content-type'],
+        'score': 2,
+        'type': 'presence'
+    },
+    'X-Requested-With': {
+        'description': 'Identifies AJAX requests',
+        'good_values': ['XMLHttpRequest'],
+        'score': 1,
+        'type': 'presence'
+    },
+    'X-UA-Compatible': {
+        'description': 'Browser compatibility mode',
+        'good_values': ['IE=edge', 'chrome=1'],
+        'score': 1,
+        'type': 'presence'
+    },
     'Server': {
         'description': 'Information about web server (should be hidden for security)',
         'good_values': [],
@@ -325,6 +372,28 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
             print("  - strict-origin")
         elif header_name == 'Permissions-Policy':
             print("  - geolocation=(), microphone=()")
+        elif header_name == 'Access-Control-Allow-Origin':
+            print("  - * (allow all origins)")
+            print("  - https://example.com (specific origin)")
+        elif header_name == 'Access-Control-Allow-Methods':
+            print("  - GET, POST, OPTIONS")
+            print("  - GET, POST, PUT, DELETE, OPTIONS")
+        elif header_name == 'Access-Control-Allow-Headers':
+            print("  - Content-Type, Authorization")
+            print("  - Content-Type, Authorization, X-Requested-With")
+        elif header_name == 'Access-Control-Max-Age':
+            print("  - 86400 (24 hours)")
+            print("  - 3600 (1 hour)")
+        elif header_name == 'X-Download-Options':
+            print("  - noopen")
+        elif header_name == 'X-Permitted-Cross-Domain-Policies':
+            print("  - none (most secure)")
+            print("  - master-only")
+        elif header_name == 'X-Requested-With':
+            print("  - XMLHttpRequest")
+        elif header_name == 'X-UA-Compatible':
+            print("  - IE=edge")
+            print("  - IE=edge,chrome=1")
         elif header_name == 'Cache-Control':
             print("  - no-store, no-cache, must-revalidate")
         elif header_name == 'Set-Cookie':
@@ -380,6 +449,38 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         print("  - same-origin: Isolates browsing context to same origin")
     elif header_name == 'Cross-Origin-Resource-Policy':
         print("  - same-origin: Only same-origin can load the resource")
+    elif header_name == 'Access-Control-Allow-Origin':
+        print("  - Controls which origins can access the resource")
+        print("  - * allows all origins (less secure)")
+        print("  - Specific origin is more secure")
+    elif header_name == 'Access-Control-Allow-Methods':
+        print("  - Specifies allowed HTTP methods for CORS")
+        print("  - GET, POST, OPTIONS are common")
+        print("  - Include only necessary methods")
+    elif header_name == 'Access-Control-Allow-Headers':
+        print("  - Specifies allowed headers in CORS requests")
+        print("  - Content-Type and Authorization are common")
+        print("  - X-Requested-With for AJAX detection")
+    elif header_name == 'Access-Control-Max-Age':
+        print("  - Caches preflight response for specified seconds")
+        print("  - Reduces number of preflight requests")
+        print("  - 86400 seconds (24 hours) is common")
+    elif header_name == 'X-Download-Options':
+        print("  - Prevents IE from executing downloaded files")
+        print("  - noopen value prevents automatic execution")
+        print("  - Protects against file download attacks")
+    elif header_name == 'X-Permitted-Cross-Domain-Policies':
+        print("  - Controls Adobe product cross-domain policies")
+        print("  - none: Most secure, no cross-domain access")
+        print("  - master-only: Only master policy files allowed")
+    elif header_name == 'X-Requested-With':
+        print("  - Identifies AJAX requests")
+        print("  - XMLHttpRequest is standard value")
+        print("  - Helps server distinguish AJAX from regular requests")
+    elif header_name == 'X-UA-Compatible':
+        print("  - Forces IE to use latest rendering engine")
+        print("  - IE=edge uses latest available version")
+        print("  - chrome=1 enables Chrome Frame if available")
     
     print(f"\n{Fore.MAGENTA}Examples:{Style.RESET_ALL}")
     if header_name == 'Strict-Transport-Security':
@@ -417,6 +518,46 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         print("    Header always set Permissions-Policy \"geolocation=(), microphone=()\"")
         print("  Nginx:")
         print("    add_header Permissions-Policy \"geolocation=(), microphone=()\" always;")
+    elif header_name == 'Access-Control-Allow-Origin':
+        print("  Apache:")
+        print("    Header always set Access-Control-Allow-Origin \"*\"")
+        print("  Nginx:")
+        print("    add_header Access-Control-Allow-Origin \"*\" always;")
+    elif header_name == 'Access-Control-Allow-Methods':
+        print("  Apache:")
+        print("    Header always set Access-Control-Allow-Methods \"GET, POST, OPTIONS\"")
+        print("  Nginx:")
+        print("    add_header Access-Control-Allow-Methods \"GET, POST, OPTIONS\" always;")
+    elif header_name == 'Access-Control-Allow-Headers':
+        print("  Apache:")
+        print("    Header always set Access-Control-Allow-Headers \"Content-Type, Authorization\"")
+        print("  Nginx:")
+        print("    add_header Access-Control-Allow-Headers \"Content-Type, Authorization\" always;")
+    elif header_name == 'Access-Control-Max-Age':
+        print("  Apache:")
+        print("    Header always set Access-Control-Max-Age \"86400\"")
+        print("  Nginx:")
+        print("    add_header Access-Control-Max-Age \"86400\" always;")
+    elif header_name == 'X-Download-Options':
+        print("  Apache:")
+        print("    Header always set X-Download-Options \"noopen\"")
+        print("  Nginx:")
+        print("    add_header X-Download-Options \"noopen\" always;")
+    elif header_name == 'X-Permitted-Cross-Domain-Policies':
+        print("  Apache:")
+        print("    Header always set X-Permitted-Cross-Domain-Policies \"none\"")
+        print("  Nginx:")
+        print("    add_header X-Permitted-Cross-Domain-Policies \"none\" always;")
+    elif header_name == 'X-Requested-With':
+        print("  Express.js:")
+        print("    res.setHeader('X-Requested-With', 'XMLHttpRequest')")
+        print("  Django:")
+        print("    response['X-Requested-With'] = 'XMLHttpRequest'")
+    elif header_name == 'X-UA-Compatible':
+        print("  Apache:")
+        print("    Header always set X-UA-Compatible \"IE=edge\"")
+        print("  Nginx:")
+        print("    add_header X-UA-Compatible \"IE=edge\" always;")
     elif header_name == 'Cache-Control':
         print("  Apache:")
         print("    Header always set Cache-Control \"no-store, no-cache, must-revalidate\"")

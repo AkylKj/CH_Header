@@ -125,6 +125,67 @@ class SecurityRecommendations:
                     "🔧 Add CORP to control resource loading",
                     "📝 Example: Cross-Origin-Resource-Policy: same-origin"
                 ]
+            },
+            'Access-Control-Allow-Origin': {
+                'missing': [
+                    "❌ Access-Control-Allow-Origin header is missing",
+                    "🔧 Add CORS policy for cross-origin requests",
+                    "📝 Example: Access-Control-Allow-Origin: *"
+                ],
+                'weak': [
+                    "⚠️ Access-Control-Allow-Origin is too permissive",
+                    "🔧 Use specific origin instead of * for better security",
+                    "📝 Example: Access-Control-Allow-Origin: https://example.com"
+                ]
+            },
+            'Access-Control-Allow-Methods': {
+                'missing': [
+                    "❌ Access-Control-Allow-Methods header is missing",
+                    "🔧 Add allowed HTTP methods for CORS",
+                    "📝 Example: Access-Control-Allow-Methods: GET, POST, OPTIONS"
+                ]
+            },
+            'Access-Control-Allow-Headers': {
+                'missing': [
+                    "❌ Access-Control-Allow-Headers header is missing",
+                    "🔧 Add allowed headers for CORS requests",
+                    "📝 Example: Access-Control-Allow-Headers: Content-Type, Authorization"
+                ]
+            },
+            'Access-Control-Max-Age': {
+                'missing': [
+                    "❌ Access-Control-Max-Age header is missing",
+                    "🔧 Add CORS preflight caching for better performance",
+                    "📝 Example: Access-Control-Max-Age: 86400"
+                ]
+            },
+            'X-Download-Options': {
+                'missing': [
+                    "❌ X-Download-Options header is missing",
+                    "🔧 Add protection against file download attacks",
+                    "📝 Example: X-Download-Options: noopen"
+                ]
+            },
+            'X-Permitted-Cross-Domain-Policies': {
+                'missing': [
+                    "❌ X-Permitted-Cross-Domain-Policies header is missing",
+                    "🔧 Add cross-domain policy for Adobe products",
+                    "📝 Example: X-Permitted-Cross-Domain-Policies: none"
+                ]
+            },
+            'X-Requested-With': {
+                'missing': [
+                    "❌ X-Requested-With header is missing",
+                    "🔧 Add AJAX request identification",
+                    "📝 Example: X-Requested-With: XMLHttpRequest"
+                ]
+            },
+            'X-UA-Compatible': {
+                'missing': [
+                    "❌ X-UA-Compatible header is missing",
+                    "🔧 Add browser compatibility mode",
+                    "📝 Example: X-UA-Compatible: IE=edge"
+                ]
             }
         }
     
@@ -269,6 +330,97 @@ class SecurityRecommendations:
                 ],
                 'Express.js': [
                     "app.use(helmet.permittedCrossDomainPolicies());"
+                ]
+            },
+            'Access-Control-Allow-Origin': {
+                'Apache': [
+                    "Header always set Access-Control-Allow-Origin \"*\""
+                ],
+                'Nginx': [
+                    "add_header Access-Control-Allow-Origin \"*\" always;"
+                ],
+                'Express.js': [
+                    "app.use(cors({ origin: '*' }));"
+                ],
+                'Django': [
+                    "CORS_ALLOW_ALL_ORIGINS = True"
+                ]
+            },
+            'Access-Control-Allow-Methods': {
+                'Apache': [
+                    "Header always set Access-Control-Allow-Methods \"GET, POST, OPTIONS\""
+                ],
+                'Nginx': [
+                    "add_header Access-Control-Allow-Methods \"GET, POST, OPTIONS\" always;"
+                ],
+                'Express.js': [
+                    "app.use(cors({ methods: ['GET', 'POST', 'OPTIONS'] }));"
+                ]
+            },
+            'Access-Control-Allow-Headers': {
+                'Apache': [
+                    "Header always set Access-Control-Allow-Headers \"Content-Type, Authorization\""
+                ],
+                'Nginx': [
+                    "add_header Access-Control-Allow-Headers \"Content-Type, Authorization\" always;"
+                ],
+                'Express.js': [
+                    "app.use(cors({ allowedHeaders: ['Content-Type', 'Authorization'] }));"
+                ]
+            },
+            'Access-Control-Max-Age': {
+                'Apache': [
+                    "Header always set Access-Control-Max-Age \"86400\""
+                ],
+                'Nginx': [
+                    "add_header Access-Control-Max-Age \"86400\" always;"
+                ],
+                'Express.js': [
+                    "app.use(cors({ maxAge: 86400 }));"
+                ]
+            },
+            'X-Download-Options': {
+                'Apache': [
+                    "Header always set X-Download-Options \"noopen\""
+                ],
+                'Nginx': [
+                    "add_header X-Download-Options \"noopen\" always;"
+                ],
+                'Express.js': [
+                    "app.use(helmet.ieNoOpen());"
+                ]
+            },
+            'X-Permitted-Cross-Domain-Policies': {
+                'Apache': [
+                    "Header always set X-Permitted-Cross-Domain-Policies \"none\""
+                ],
+                'Nginx': [
+                    "add_header X-Permitted-Cross-Domain-Policies \"none\" always;"
+                ],
+                'Express.js': [
+                    "app.use(helmet.permittedCrossDomainPolicies());"
+                ]
+            },
+            'X-Requested-With': {
+                'Express.js': [
+                    "app.use((req, res, next) => {",
+                    "    res.setHeader('X-Requested-With', 'XMLHttpRequest');",
+                    "    next();",
+                    "});"
+                ],
+                'Django': [
+                    "response['X-Requested-With'] = 'XMLHttpRequest'"
+                ]
+            },
+            'X-UA-Compatible': {
+                'Apache': [
+                    "Header always set X-UA-Compatible \"IE=edge\""
+                ],
+                'Nginx': [
+                    "add_header X-UA-Compatible \"IE=edge\" always;"
+                ],
+                'Express.js': [
+                    "app.use(helmet.ieNoOpen());"
                 ]
             }
         }
