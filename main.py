@@ -15,6 +15,7 @@ from datetime import datetime
 from src.header_checker import check_security_headers
 from src.exporter import export_results
 from src.ssl_checker import analyze_ssl_security
+from src.bulk_checker import BulkChecker
 
 init(autoreset=True)
 
@@ -25,6 +26,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         Examples:
+        # Single site check
         python main.py https://example.com
         python main.py https://example.com --verbose
         python main.py https://example.com --output results.txt
@@ -32,6 +34,13 @@ def main():
         python main.py https://example.com --ssl-only
         python main.py https://example.com --timeout 10
         python main.py https://example.com --user-agent "Example User-Agent"
+        
+        # Multiple sites check
+        python main.py --urls "https://google.com,https://github.com,https://stackoverflow.com"
+        python main.py --file urls.txt --parallel 5
+        python main.py --file urls.txt --ssl-check --parallel 3 --output bulk_results.json
+        python main.py --urls "https://example.com,https://test.com" --batch-size 10
+        
         python main.py https://example.com --version
         """
         )
@@ -122,6 +131,35 @@ def main():
         action='store_true',
         help='Do not verify SSL certificates',
     )
+
+    # options for mass checking
+    parser.add_argument(
+        '--file','-f',
+        help='File with URLs to check',
+    )
+
+    parser.add_argument(
+        '--urls','-u',
+        help='URLs to check',
+    )
+
+    parser.add_argument(
+        '--parallel','-p',
+        type=int,
+        default=1,
+        help='Number of parallel requests (default: 1)',
+    )
+
+    parser.add_argument(
+        '--batch-size','-b',
+        type=int,
+        default=10,
+        help='Number of requests in a batch (default: 10)',
+    )
+
+    
+    
+    
     
     args = parser.parse_args()
 
@@ -133,15 +171,36 @@ def main():
         args.verify_ssl = False
     
     
-    # check if url is provided
-    if not args.url:
-        print(f"{Fore.RED}Error: URL is required. Please provide a URL to check.{Style.RESET_ALL}")
-        parser.print_help()
-        sys.exit(1)
+    # Determine URLs to check
+    urls_to_check = []
     
-    # check if url format is valid
-    if not args.url.startswith(('http://', 'https://')):
-        print(f"{Fore.RED}Error: Invalid URL. Please provide a valid URL starting with http:// or https://{Style.RESET_ALL}")
+    if args.file:
+        # Load URLs from file
+        try:
+            checker = BulkChecker(args.parallel, args.batch_size)
+            urls_to_check = checker.load_urls_from_file(args.file)
+            if not urls_to_check:
+                print(f"{Fore.RED}Error: No valid URLs found in file {args.file}{Style.RESET_ALL}")
+                sys.exit(1)
+        except FileNotFoundError:
+            print(f"{Fore.RED}Error: File {args.file} not found{Style.RESET_ALL}")
+            sys.exit(1)
+    elif args.urls:
+        # Load URLs from comma-separated string
+        checker = BulkChecker(args.parallel, args.batch_size)
+        urls_to_check = checker.parse_urls_string(args.urls)
+        if not urls_to_check:
+            print(f"{Fore.RED}Error: No valid URLs provided in --urls argument{Style.RESET_ALL}")
+            sys.exit(1)
+    elif args.url:
+        # Single URL (existing logic)
+        if not args.url.startswith(('http://', 'https://')):
+            print(f"{Fore.RED}Error: Invalid URL. Please provide a valid URL starting with http:// or https://{Style.RESET_ALL}")
+            sys.exit(1)
+        urls_to_check = [args.url]
+    else:
+        print(f"{Fore.RED}Error: Please provide URL(s) via --url, --file, or --urls{Style.RESET_ALL}")
+        parser.print_help()
         sys.exit(1)
 
 
@@ -149,8 +208,101 @@ def main():
     check_headers = not args.ssl_only
     check_ssl = args.ssl_check or args.ssl_only
     
+    # Check multiple sites
+    if len(urls_to_check) > 1:
+        print(f"{Fore.CYAN}🔍 Checking {len(urls_to_check)} sites...{Style.RESET_ALL}")
+        
+        if args.verbose:
+            print(f"{Fore.CYAN}🔧 Request Settings:{Style.RESET_ALL}")
+            print(f"  Timeout: {args.timeout} seconds")
+            print(f"  User-Agent: {args.user_agent}")
+            print(f"  Follow redirects: {args.follow_redirects}")
+            print(f"  Max redirects: {args.max_redirects}")
+            print(f"  Verify SSL: {args.verify_ssl}")
+            print(f"  Parallel workers: {args.parallel}")
+            print(f"  Batch size: {args.batch_size}")
+            print()
+        
+        # Perform bulk checks
+        results_list = checker.check_multiple_sites(
+            urls_to_check,
+            check_ssl=check_ssl,
+            timeout=args.timeout,
+            user_agent=args.user_agent,
+            follow_redirects=args.follow_redirects,
+            max_redirects=args.max_redirects,
+            verify_ssl=args.verify_ssl
+        )
+        
+        # Generate summary report
+        summary = checker.generate_summary_report(results_list)
+        
+        # Display summary
+        print(f"\n{Fore.GREEN}📊 Bulk Check Summary:{Style.RESET_ALL}")
+        print(f"Total sites checked: {summary['total_sites']}")
+        print(f"Successful checks: {summary['successful_checks']}")
+        print(f"Failed checks: {summary['failed_checks']}")
+        print(f"Success rate: {summary['success_rate']:.1f}%")
+        print(f"Average header score: {summary['average_header_score']:.1f}")
+        
+        if check_ssl:
+            print(f"Average SSL score: {summary['average_ssl_score']:.1f}")
+        
+        # Display detailed results
+        print(f"\n{Fore.YELLOW}📋 Detailed Results:{Style.RESET_ALL}")
+        print("-" * 80)
+        
+        for result in results_list:
+            status = "✅" if result['success'] else "❌"
+            print(f"{status} {result['url']}")
+            
+            if result['success'] and result['headers']:
+                score = result['headers']['total_score']
+                percentage = (score / result['headers']['max_score']) * 100
+                print(f"   Header Score: {score}/{result['headers']['max_score']} ({percentage:.1f}%)")
+            
+            if result['ssl']:
+                ssl_score = result['ssl']['score']['total_score']
+                ssl_percentage = result['ssl']['score']['percentage']
+                print(f"   SSL Score: {ssl_score}/{result['ssl']['score']['max_score']} ({ssl_percentage:.1f}%)")
+            
+            if result['error']:
+                print(f"   Error: {result['error']}")
+            print()
+        
+        # Display top sites
+        if summary['best_sites']:
+            print(f"{Fore.GREEN}🏆 Top 5 Sites by Security Score:{Style.RESET_ALL}")
+            for i, url in enumerate(summary['best_sites'], 1):
+                print(f"  {i}. {url}")
+        
+        if summary['worst_sites']:
+            print(f"\n{Fore.RED}⚠️ Bottom 5 Sites by Security Score:{Style.RESET_ALL}")
+            for i, url in enumerate(summary['worst_sites'], 1):
+                print(f"  {i}. {url}")
+        
+        # Save results if output file specified
+        if args.output:
+            print(f"\n{Fore.CYAN}💾 Saving results to {args.output}...{Style.RESET_ALL}")
+            
+            export_data = {
+                'summary': summary,
+                'results': results_list,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            if export_results(export_data, args.output):
+                print(f"{Fore.GREEN}✅ Results saved successfully!{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}❌ Error: Failed to save results{Style.RESET_ALL}")
+        
+        return  # Exit for bulk checks
+    
+    # Single site check (existing logic)
+    single_url = urls_to_check[0]
+    
     if check_headers:
-        print(f"{Fore.CYAN}🔍 Checking the security of the site: {args.url}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}🔍 Checking the security of the site: {single_url}{Style.RESET_ALL}")
         
         # Display request settings in verbose mode
         if args.verbose:
@@ -164,7 +316,7 @@ def main():
 
         # Check headers security with new parameters
         results = check_security_headers(
-            args.url,
+            single_url,
             timeout=args.timeout,
             user_agent=args.user_agent,
             follow_redirects=args.follow_redirects,
@@ -181,12 +333,12 @@ def main():
     # SSL/TLS Analysis
     ssl_results = None
     if check_ssl:
-        ssl_results = analyze_ssl_security(args.url, args.timeout)
+        ssl_results = analyze_ssl_security(single_url, args.timeout)
     
     # Print results
     if check_headers and results:
         print(f"\n{Fore.GREEN}📊 Security Header Check Results:{Style.RESET_ALL}")
-        print(f"URL: {results['url']}")
+        print(f"URL: {single_url}")
         print(f"Total Score: {results['total_score']}/{results['max_score']}")
         print(f"Security Percentage: {(results['total_score'] / results['max_score'] * 100):.1f}%")
     
@@ -270,7 +422,7 @@ def main():
         
         # Combine results for export
         export_data = {
-            'url': args.url,
+            'url': single_url,
             'headers': results if check_headers else None,
             'ssl': ssl_results if check_ssl else None,
             'timestamp': datetime.now().isoformat()
