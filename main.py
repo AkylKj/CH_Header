@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-"""
-Security Header Checker - CLI приложение для проверки безопасности сайтов
-"""
+
 # import libraries
 import argparse
 import requests
@@ -12,11 +10,12 @@ import sys
 from datetime import datetime
 
 # import custom modules
-from src.header_checker import check_security_headers
+from src.header_checker import check_security_headers, print_verbose_header_info
 from src.exporter import export_results
 from src.ssl_checker import analyze_ssl_security
 from src.bulk_checker import BulkChecker
 from src.response_analyzer import ResponseAnalyzer
+from src.recommendations import SecurityRecommendations
 
 init(autoreset=True)
 
@@ -53,7 +52,7 @@ def main():
     parser.add_argument(
         '--verbose', '-v',
         action='store_true',
-        help='Verbose output',
+        help='Verbose output with detailed analysis, recommendations, and implementation examples',
     )
 
     parser.add_argument(
@@ -84,7 +83,7 @@ def main():
     parser.add_argument(
         '--version', '-V',
         action='version',
-        version='%(prog)s 0.0.1',
+        version='%(prog)s 0.0.2',
     )
 
     parser.add_argument(
@@ -441,12 +440,34 @@ def main():
         print(f"  Description: {header_data['description']}")
         print(f"  Score: {header_data['score']}")
         print()
+        
+        if args.verbose:
+            print_verbose_header_info(header_name, header_data, verbose=True)
     
     # Summary
     print(f"{Fore.CYAN}📈 Summary:{Style.RESET_ALL}")
     print(f"✅ Well configured: {results['summary']['good']}")
     print(f"❌ Issues: {results['summary']['bad']}")
     print(f"ℹ️ Info: {results['summary']['info']}")
+    
+    if args.verbose:
+        recommendations = SecurityRecommendations()
+        recommendations.print_security_summary(results, verbose=True)
+        
+        print(f"\n{Fore.MAGENTA}📊 Security Statistics:{Style.RESET_ALL}")
+        print(f"  Total Headers Checked: {len(results['headers'])}")
+        print(f"  Good Headers: {results['summary']['good']}")
+        print(f"  Bad Headers: {results['summary']['bad']}")
+        print(f"  Info Headers: {results['summary']['info']}")
+        print(f"  Security Score: {results['total_score']}/{results['max_score']} ({(results['total_score'] / results['max_score'] * 100):.1f}%)")
+        
+        print(f"\n{Fore.BLUE}🏆 Best Practices Comparison:{Style.RESET_ALL}")
+        print("  Industry Standard: 80%+ security score")
+        print("  Excellent: 90%+ security score")
+        percentage = (results['total_score'] / results['max_score']) * 100
+        print("  Your Score: " + ("✅ Excellent" if percentage >= 90 else 
+                                 "⚠️ Good" if percentage >= 80 else 
+                                 "❌ Needs Improvement"))
     
     # Security assessment for headers
     if check_headers and results:

@@ -47,7 +47,7 @@ SECURE_HEADERS = {
         'score': 4,
         'type': 'presence'
     },
-    # Новые заголовки для v0.0.3
+    
     'Server': {
         'description': 'Information about web server (should be hidden for security)',
         'good_values': [],
@@ -287,6 +287,167 @@ def check_security_headers(
                 results['summary']['bad'] += 1
     
     return results
+
+
+def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool = False):
+    if not verbose:
+        return
+    
+    print(f"\n{Fore.CYAN}🔍 Detailed Analysis: {header_name}{Style.RESET_ALL}")
+    print("-" * 50)
+    
+    print(f"Current Value: {header_data['value']}")
+    
+    status_color = Fore.GREEN if header_data['status'] == 'GOOD' else Fore.RED
+    print(f"Status: {status_color}{header_data['status']}{Style.RESET_ALL}")
+    print(f"Score: {header_data['score']} points")
+    
+    print(f"\n{Fore.YELLOW}Purpose:{Style.RESET_ALL}")
+    print(f"  {header_data['description']}")
+    
+    if header_data['status'] != 'GOOD':
+        print(f"\n{Fore.GREEN}Recommended Values:{Style.RESET_ALL}")
+        if header_name == 'Strict-Transport-Security':
+            print("  - max-age=31536000; includeSubDomains; preload")
+            print("  - max-age=63072000; includeSubDomains; preload")
+        elif header_name == 'Content-Security-Policy':
+            print("  - default-src 'self'; script-src 'self'")
+            print("  - object-src 'none'; base-uri 'self'")
+        elif header_name == 'X-Frame-Options':
+            print("  - DENY (most secure)")
+            print("  - SAMEORIGIN (if frames needed)")
+        elif header_name == 'X-Content-Type-Options':
+            print("  - nosniff")
+        elif header_name == 'X-XSS-Protection':
+            print("  - 1; mode=block")
+        elif header_name == 'Referrer-Policy':
+            print("  - strict-origin-when-cross-origin")
+            print("  - strict-origin")
+        elif header_name == 'Permissions-Policy':
+            print("  - geolocation=(), microphone=()")
+        elif header_name == 'Cache-Control':
+            print("  - no-store, no-cache, must-revalidate")
+        elif header_name == 'Set-Cookie':
+            print("  - Secure; HttpOnly; SameSite=Strict")
+        elif header_name == 'Clear-Site-Data':
+            print("  - \"cache\", \"cookies\", \"storage\"")
+        elif header_name == 'Cross-Origin-Embedder-Policy':
+            print("  - require-corp")
+        elif header_name == 'Cross-Origin-Opener-Policy':
+            print("  - same-origin")
+        elif header_name == 'Cross-Origin-Resource-Policy':
+            print("  - same-origin")
+    
+    print(f"\n{Fore.BLUE}Technical Details:{Style.RESET_ALL}")
+    if header_name == 'Strict-Transport-Security':
+        print("  - max-age: Time in seconds to enforce HTTPS")
+        print("  - includeSubDomains: Apply to all subdomains")
+        print("  - preload: Include in browser HSTS lists")
+    elif header_name == 'Content-Security-Policy':
+        print("  - default-src: Default source for resources")
+        print("  - script-src: Allowed sources for scripts")
+        print("  - object-src: Allowed sources for objects")
+    elif header_name == 'X-Frame-Options':
+        print("  - DENY: Completely prevents framing")
+        print("  - SAMEORIGIN: Allows framing from same origin")
+        print("  - ALLOW-FROM: Allows framing from specific URI")
+    elif header_name == 'X-Content-Type-Options':
+        print("  - nosniff: Prevents MIME type sniffing")
+        print("  - Forces browser to use declared Content-Type")
+    elif header_name == 'X-XSS-Protection':
+        print("  - 1: Enables XSS protection")
+        print("  - mode=block: Blocks the page if XSS detected")
+    elif header_name == 'Referrer-Policy':
+        print("  - Controls what referrer information is sent")
+        print("  - strict-origin: Only send origin, not full URL")
+    elif header_name == 'Permissions-Policy':
+        print("  - Controls access to browser features")
+        print("  - geolocation=(): Disables geolocation")
+    elif header_name == 'Cache-Control':
+        print("  - no-store: Don't store in any cache")
+        print("  - no-cache: Validate with server before using")
+    elif header_name == 'Set-Cookie':
+        print("  - Secure: Only sent over HTTPS")
+        print("  - HttpOnly: Not accessible via JavaScript")
+        print("  - SameSite: Controls cross-site requests")
+    elif header_name == 'Clear-Site-Data':
+        print("  - Clears browser data on logout")
+        print("  - cache: Clears cached resources")
+        print("  - cookies: Clears cookies")
+    elif header_name == 'Cross-Origin-Embedder-Policy':
+        print("  - require-corp: Requires cross-origin resources to be CORS-enabled")
+    elif header_name == 'Cross-Origin-Opener-Policy':
+        print("  - same-origin: Isolates browsing context to same origin")
+    elif header_name == 'Cross-Origin-Resource-Policy':
+        print("  - same-origin: Only same-origin can load the resource")
+    
+    print(f"\n{Fore.MAGENTA}Examples:{Style.RESET_ALL}")
+    if header_name == 'Strict-Transport-Security':
+        print("  Apache (.htaccess):")
+        print("    Header always set Strict-Transport-Security \"max-age=31536000; includeSubDomains\"")
+        print("  Nginx:")
+        print("    add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;")
+    elif header_name == 'Content-Security-Policy':
+        print("  Basic CSP:")
+        print("    Content-Security-Policy: default-src 'self'; script-src 'self'")
+        print("  Strict CSP:")
+        print("    Content-Security-Policy: default-src 'none'; script-src 'self'")
+    elif header_name == 'X-Frame-Options':
+        print("  Apache:")
+        print("    Header always set X-Frame-Options \"DENY\"")
+        print("  Nginx:")
+        print("    add_header X-Frame-Options \"DENY\" always;")
+    elif header_name == 'X-Content-Type-Options':
+        print("  Apache:")
+        print("    Header always set X-Content-Type-Options \"nosniff\"")
+        print("  Nginx:")
+        print("    add_header X-Content-Type-Options \"nosniff\" always;")
+    elif header_name == 'X-XSS-Protection':
+        print("  Apache:")
+        print("    Header always set X-XSS-Protection \"1; mode=block\"")
+        print("  Nginx:")
+        print("    add_header X-XSS-Protection \"1; mode=block\" always;")
+    elif header_name == 'Referrer-Policy':
+        print("  Apache:")
+        print("    Header always set Referrer-Policy \"strict-origin-when-cross-origin\"")
+        print("  Nginx:")
+        print("    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;")
+    elif header_name == 'Permissions-Policy':
+        print("  Apache:")
+        print("    Header always set Permissions-Policy \"geolocation=(), microphone=()\"")
+        print("  Nginx:")
+        print("    add_header Permissions-Policy \"geolocation=(), microphone=()\" always;")
+    elif header_name == 'Cache-Control':
+        print("  Apache:")
+        print("    Header always set Cache-Control \"no-store, no-cache, must-revalidate\"")
+        print("  Nginx:")
+        print("    add_header Cache-Control \"no-store, no-cache, must-revalidate\" always;")
+    elif header_name == 'Set-Cookie':
+        print("  Express.js:")
+        print("    res.cookie('session', 'abc123', { secure: true, httpOnly: true, sameSite: 'strict' })")
+        print("  Django:")
+        print("    SESSION_COOKIE_SECURE = True")
+        print("    SESSION_COOKIE_HTTPONLY = True")
+    elif header_name == 'Clear-Site-Data':
+        print("  Apache:")
+        print("    Header always set Clear-Site-Data \"\\\"cache\\\", \\\"cookies\\\", \\\"storage\\\"\"")
+        print("  Nginx:")
+        print("    add_header Clear-Site-Data \"\\\"cache\\\", \\\"cookies\\\", \\\"storage\\\"\" always;")
+    elif header_name == 'Cross-Origin-Embedder-Policy':
+        print("  Apache:")
+        print("    Header always set Cross-Origin-Embedder-Policy \"require-corp\"")
+        print("  Nginx:")
+        print("    add_header Cross-Origin-Embedder-Policy \"require-corp\" always;")
+    elif header_name == 'Cross-Origin-Opener-Policy':
+        print("  Apache:")
+        print("    Header always set Cross-Origin-Opener-Policy \"same-origin\"")
+        print("  Nginx:")
+        print("    add_header Cross-Origin-Opener-Policy \"same-origin\" always;")
+    elif header_name == 'Cross-Origin-Resource-Policy':
+        print("  Apache:")
+        print("    Header always set Cross-Origin-Resource-Policy \"same-origin\"")
+        print("  Nginx:")
+        print("    add_header Cross-Origin-Resource-Policy \"same-origin\" always;")
 
 
 
