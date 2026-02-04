@@ -75,7 +75,7 @@ def main():
     )
 
     parser.add_argument(
-        '--user-agent', '-u',
+        '--user-agent', '-U',
         help='User-Agent to use for the request',
         default='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     )
@@ -87,7 +87,7 @@ def main():
     )
 
     parser.add_argument(
-        '--follow-redirects', '-f',
+        '--follow-redirects', '-F',
         action='store_true',
         help='Follow redirects',
     )
