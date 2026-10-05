@@ -2,11 +2,10 @@
 
 > Мощный CLI инструмент для анализа заголовков безопасности веб-сайтов
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.0.2-orange.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/Version-0.0.3-orange.svg)]()
 
-[English](README.md) | [Русский](README.ru.md)
+[English](Readme.md) | [Русский](README.ru.md)
 
 ## ✨ Возможности
 
@@ -32,6 +31,40 @@ python main.py --file urls.txt --parallel 5
 # Полный анализ
 python main.py https://example.com --ssl-check --response-analysis
 ```
+
+## v0.0.3: установка и поведение
+
+Целевая поддержка: Python 3.10–3.14. Создайте отдельное окружение:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py --version
+```
+
+На Linux: `.venv/bin/python -m pip install -r requirements.txt`.
+
+`--ssl-only` и `--response-only` запускают только выбранный модуль и
+взаимоисключают друг друга. `--batch-size` ограничивает число сайтов в пакете,
+`--parallel` — число работников; timeout и числовые лимиты должны быть положительными.
+Редиректы по умолчанию не выполняются; включите `--follow-redirects` при необходимости.
+`--no-verify-ssl` отключает проверку сертификата только для HTTP-запросов;
+TLS-анализ независимо проверяет доверие и hostname.
+
+TXT показывает включённые проверки; JSON сохраняет составной отчёт целиком;
+CSV содержит колонки URL, Module, Check, Value, Status, Score, Error.
+Частичные результаты сохраняются даже при ошибке одного модуля.
+Код завершения: 0 — все выбранные проверки и экспорт выполнены,
+1 — ошибка проверки или экспорта, 2 — неверные аргументы CLI.
+
+Оценка — собственная эвристика, а не отраслевой стандарт или полный аудит.
+Проверка значений CSP/HSTS/cookies остаётся базовой. TLS UNKNOWN означает
+невозможность достоверной проверки; анализируется только согласованный cipher suite.
+Недоверенный сертификат может отображаться, но не получает статус verified.
+
+Тесты и конфигурация CI уже добавлены. До прерывания 88 тестов прошли на
+Windows / Python 3.14. После просьбы пользователя новые тесты не пишутся
+и проверки не запускаются. Удалённый CI и полная матрица ОС/Python пока не проверены.
 
 ## 📋 Поддерживаемые заголовки
 

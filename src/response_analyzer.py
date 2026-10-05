@@ -1,7 +1,7 @@
 import requests
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-import re
+from time import perf_counter
 
 class ResponseAnalyzer:
     def __init__(self):
@@ -60,44 +60,31 @@ class ResponseAnalyzer:
             if user_agent:
                 headers['User-Agent'] = user_agent
             
-            # Make request
-            start_time = datetime.now()
-            response = requests.get(
-                url,
-                headers=headers,
-                timeout=timeout,
-                allow_redirects=follow_redirects,
-                verify=verify_ssl,
-                stream=True  # Don't download content
-            )
-            end_time = datetime.now()
-            
-            # Calculate response time
-            result['response_time'] = (end_time - start_time).total_seconds()
-            result['status_code'] = response.status_code
-            result['status_message'] = self.status_codes.get(response.status_code, "Unknown status code")
-            result['success'] = True
-            
-            # Analyze headers
-            self._analyze_headers(response.headers, result)
-            
-            # Analyze redirect chain
-            if follow_redirects and response.history:
-                result['redirect_chain'] = [
-                    {
-                        'url': resp.url,
-                        'status_code': resp.status_code,
-                        'status_message': self.status_codes.get(resp.status_code, "Unknown")
-                    }
-                    for resp in response.history
-                ]
-            
+            start_time = perf_counter()
+            with requests.Session() as session:
+                session.max_redirects = max_redirects
+                with session.get(url, headers=headers, timeout=timeout,
+                                 allow_redirects=follow_redirects,
+                                 verify=verify_ssl, stream=True) as response:
+                    result['response_time'] = perf_counter() - start_time
+                    result['status_code'] = response.status_code
+                    result['status_message'] = self.status_codes.get(
+                        response.status_code, 'Unknown status code')
+                    self._analyze_headers(response.headers, result)
+                    result['redirect_chain'] = [
+                        {'url': resp.url, 'status_code': resp.status_code,
+                         'status_message': self.status_codes.get(resp.status_code, 'Unknown')}
+                        for resp in response.history
+                    ] if follow_redirects else []
+                    result['success'] = True
+
         except requests.exceptions.RequestException as e:
-            result['error'] = str(e)
+            result['error'] = f'{type(e).__name__}: {e}'
         
         return result
     
     def _analyze_headers(self, headers: Dict, result: Dict):
+        headers = requests.structures.CaseInsensitiveDict(headers)
         # Server information
         if 'Server' in headers:
             server_header = headers['Server'].lower()

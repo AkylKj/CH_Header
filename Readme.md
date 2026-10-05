@@ -2,11 +2,10 @@
 
 > Powerful CLI tool for analyzing website security headers
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.0.2-orange.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/Version-0.0.3-orange.svg)]()
 
-[Русский](README.ru.md) | [English](README.md)
+[Русский](README.ru.md) | [English](Readme.md)
 
 ## ✨ Features
 
@@ -32,6 +31,38 @@ python main.py --file urls.txt --parallel 5
 # Full analysis
 python main.py https://example.com --ssl-check --response-analysis
 ```
+
+## v0.0.3: installation and behavior
+
+Target support: Python 3.10–3.14. Use an isolated environment:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py --version
+```
+
+On Linux use `.venv/bin/python -m pip install -r requirements.txt`.
+
+`--ssl-only` and `--response-only` select only that module and are mutually exclusive.
+`--batch-size` bounds each group of sites; `--parallel` bounds worker threads.
+Timeout and numeric limits must be positive. Redirects are disabled by default;
+use `--follow-redirects` to enable them. `--no-verify-ssl` affects HTTP requests
+only; TLS analysis always validates certificate trust and hostname independently.
+
+TXT displays enabled checks, JSON preserves the entire composed report, and CSV
+uses URL, Module, Check, Value, Status, Score, Error columns. Partial reports
+are exported even when one module fails. Exit codes: 0 for successful checks
+and export, 1 for check/export failures, 2 for invalid arguments.
+
+Scores are project heuristics, not an industry standard or a full audit.
+CSP/HSTS/cookie value matching remains basic. UNKNOWN TLS probes are inconclusive;
+only the negotiated cipher suite is inspected. Untrusted certificate details
+may be displayed without granting verified status.
+
+Tests and CI configuration are present. Before interruption, 88 tests passed
+on Windows / Python 3.14. At the user's request, no further tests are being
+written or run. Remote CI and the full OS/Python matrix remain unverified.
 
 ## 📋 Supported Headers
 

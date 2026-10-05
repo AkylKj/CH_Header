@@ -145,71 +145,20 @@ SECURE_HEADERS = {
     }
 }
 
-# Get headers from the site
 def get_headers(
-    url: str, 
-    timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/1.0',
-    follow_redirects: bool = True,
-    max_redirects: int = 5,
+    url: str, timeout: int = 10,
+    user_agent: str = 'Security-Header-Checker/0.0.3',
+    follow_redirects: bool = True, max_redirects: int = 5,
     verify_ssl: bool = True
 ) -> Dict[str, str]:
-    """
-    Gets HTTP headers from the site
-    
-    Args:
-        url (str): URL of the site to check
-        timeout (int): Request timeout in seconds
-        user_agent (str): User-Agent string
-        follow_redirects (bool): Follow redirects
-        max_redirects (int): Maximum number of redirects
-        verify_ssl (bool): Verify SSL certificates
-        
-    Returns:
-        Dict[str, str]: Dictionary with headers
-    """
-    try:
-        # Setup session
-        session = requests.Session()
-        
-        # Setup headers
-        headers = {
-            'User-Agent': user_agent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-        }
-        
-        # Setup request parameters
-        request_params = {
-            'timeout': timeout,
-            'headers': headers,
-            'allow_redirects': follow_redirects,
-            'verify': verify_ssl,
-        }
-        
-        # Add max_redirects if follow_redirects=True
-        if follow_redirects:
-            request_params['max_redirects'] = max_redirects
-        
-        # Make GET request
-        response = session.get(url, **request_params)
-        
-        return dict(response.headers)
-        
-    except requests.exceptions.Timeout:
-        print(f"{Fore.RED}Error: Request timeout after {timeout} seconds{Style.RESET_ALL}")
-        return {}
-    except requests.exceptions.SSLError:
-        print(f"{Fore.RED}Error: SSL certificate verification failed{Style.RESET_ALL}")
-        return {}
-    except requests.exceptions.TooManyRedirects:
-        print(f"{Fore.RED}Error: Too many redirects (max: {max_redirects}){Style.RESET_ALL}")
-        return {}
-    except requests.exceptions.RequestException as e:
-        print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
-        return {}
+    """Fetch headers without downloading the body; transport errors propagate."""
+    with requests.Session() as session:
+        session.max_redirects = max_redirects
+        headers = {'User-Agent': user_agent} if user_agent else {}
+        with session.get(url, timeout=timeout, headers=headers,
+                         allow_redirects=follow_redirects, verify=verify_ssl,
+                         stream=True) as response:
+            return response.headers.copy()
 
 # Analyze headers from the site
 def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
@@ -252,26 +201,21 @@ def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
 def check_security_headers(
     url: str,
     timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/1.0',
+    user_agent: str = 'Security-Header-Checker/0.0.3',
     follow_redirects: bool = True,
     max_redirects: int = 5,
     verify_ssl: bool = True
 ) -> Dict:
 
-    headers = get_headers(
-        url, 
-        timeout=timeout,
-        user_agent=user_agent,
-        follow_redirects=follow_redirects,
-        max_redirects=max_redirects,
-        verify_ssl=verify_ssl
-    )
-
-    if not headers:
-        return {
-            'success': False,
-            'error': 'No headers found',
-        }
+    try:
+        headers = requests.structures.CaseInsensitiveDict(get_headers(
+            url, timeout=timeout, user_agent=user_agent,
+            follow_redirects=follow_redirects, max_redirects=max_redirects,
+            verify_ssl=verify_ssl
+        ))
+    except requests.exceptions.RequestException as exc:
+        return {'success': False, 'url': url,
+                'error': f'{type(exc).__name__}: {exc}'}
 
     results = {
         'success': True,
@@ -283,6 +227,7 @@ def check_security_headers(
             'good': 0,
             'bad': 0,
             'info': 0,
+            'warning': 0,
         }
     }
 

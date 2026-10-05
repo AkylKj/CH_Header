@@ -1,149 +1,103 @@
-
-import asyncio
-import aiohttp
-import concurrent.futures
-from typing import List, Dict, Optional
-from pathlib import Path
-import csv
-import json
+"""Bounded bulk execution with independent module results."""
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from typing import Dict, List
+from urllib.parse import urlsplit
 
 from .header_checker import check_security_headers
 from .ssl_checker import analyze_ssl_security
+from .response_analyzer import ResponseAnalyzer
+
+
+def validate_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+        raise ValueError(f'Invalid HTTP(S) URL: {url}')
+    if parsed.port is not None and not 1 <= parsed.port <= 65535:
+        raise ValueError(f'Invalid port: {url}')
+    return url
+
 
 class BulkChecker:
     def __init__(self, parallel_workers: int = 1, batch_size: int = 10):
+        if parallel_workers <= 0 or batch_size <= 0:
+            raise ValueError('parallel_workers and batch_size must be positive')
         self.parallel_workers = parallel_workers
         self.batch_size = batch_size
-        self.results = []
-        
+
     def load_urls_from_file(self, file_path: str) -> List[str]:
-        """Loads URLs from file"""
-        urls = []
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    url = line.strip()
-                    if url and not url.startswith('#'):
-                        if not url.startswith(('http://', 'https://')):
-                            url = 'https://' + url
-                        urls.append(url)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"File {file_path} not found")
-        return urls
-    
+        with open(file_path, encoding='utf-8') as source:
+            return self._normalize_urls(line.strip() for line in source
+                                        if line.strip() and not line.lstrip().startswith('#'))
+
     def parse_urls_string(self, urls_string: str) -> List[str]:
-        """Parses comma-separated string of URLs"""
-        urls = []
-        for url in urls_string.split(','):
-            url = url.strip()
-            if url:
-                if not url.startswith(('http://', 'https://')):
-                    url = 'https://' + url
-                urls.append(url)
-        return urls
-    
-    def check_single_site(self, url: str, check_ssl: bool = False, timeout: int = 10, 
-                         user_agent: str = None, follow_redirects: bool = True, 
-                         max_redirects: int = 5, verify_ssl: bool = True) -> Dict:
-        """Checks a single site"""
-        result = {
-            'url': url,
-            'timestamp': datetime.now().isoformat(),
-            'success': False,
-            'headers': None,
-            'ssl': None,
-            'error': None
-        }
-        
-        try:
-            # Check headers
-            headers_result = check_security_headers(
-                url, 
-                timeout=timeout,
-                user_agent=user_agent,
-                follow_redirects=follow_redirects,
-                max_redirects=max_redirects,
-                verify_ssl=verify_ssl
-            )
-            if headers_result['success']:
-                result['headers'] = headers_result
-                result['success'] = True
-            
-            # Check SSL if needed
-            if check_ssl:
-                ssl_result = analyze_ssl_security(url, timeout)
-                result['ssl'] = ssl_result
-                
-        except Exception as e:
-            result['error'] = str(e)
-            
+        return self._normalize_urls(url.strip() for url in urls_string.split(',') if url.strip())
+
+    @staticmethod
+    def _normalize_urls(urls):
+        return [validate_url(url if '://' in url else 'https://' + url) for url in urls]
+
+    def check_single_site(self, url: str, check_ssl: bool = False, timeout: int = 10,
+                          user_agent: str = None, follow_redirects: bool = True,
+                          max_redirects: int = 5, verify_ssl: bool = True,
+                          check_headers: bool = True, check_response: bool = False) -> Dict:
+        result = {'url': url, 'timestamp': datetime.now().isoformat(),
+                  'success': False, 'headers': None, 'ssl': None,
+                  'response': None, 'error': None, 'errors': {}}
+        options = dict(timeout=timeout, user_agent=user_agent,
+                       follow_redirects=follow_redirects,
+                       max_redirects=max_redirects, verify_ssl=verify_ssl)
+        checks = []
+        if check_headers:
+            checks.append(('headers', lambda: check_security_headers(url, **options)))
+        if check_ssl:
+            checks.append(('ssl', lambda: analyze_ssl_security(url, timeout)))
+        if check_response:
+            checks.append(('response', lambda: ResponseAnalyzer().analyze_response_headers(url, **options)))
+        for module, run in checks:
+            try:
+                value = run()
+            except Exception as exc:
+                value = {'success': False, 'error': f'{type(exc).__name__}: {exc}'}
+            result[module] = value
+            if not value.get('success'):
+                result['errors'][module] = value.get('error') or 'Analysis incomplete'
+        result['success'] = bool(checks) and not result['errors']
+        result['error'] = '; '.join(f'{module}: {error}' for module, error in result['errors'].items()) or None
         return result
-    
-    def check_multiple_sites(self, urls: List[str], check_ssl: bool = False, 
-                           timeout: int = 10, user_agent: str = None,
-                           follow_redirects: bool = True, max_redirects: int = 5,
-                           verify_ssl: bool = True) -> List[Dict]:
-        """Checks multiple sites with parallel processing"""
+
+    def check_multiple_sites(self, urls: List[str], check_ssl: bool = False,
+                             timeout: int = 10, user_agent: str = None,
+                             follow_redirects: bool = True, max_redirects: int = 5,
+                             verify_ssl: bool = True, check_headers: bool = True,
+                             check_response: bool = False) -> List[Dict]:
+        options = dict(check_ssl=check_ssl, timeout=timeout, user_agent=user_agent,
+                       follow_redirects=follow_redirects, max_redirects=max_redirects,
+                       verify_ssl=verify_ssl, check_headers=check_headers,
+                       check_response=check_response)
         results = []
-        
-        if self.parallel_workers == 1:
-            # Sequential processing
-            for url in urls:
-                result = self.check_single_site(
-                    url, check_ssl, timeout, user_agent, 
-                    follow_redirects, max_redirects, verify_ssl
-                )
-                results.append(result)
-        else:
-            # Parallel processing
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.parallel_workers) as executor:
-                future_to_url = {
-                    executor.submit(
-                        self.check_single_site, url, check_ssl, timeout, user_agent,
-                        follow_redirects, max_redirects, verify_ssl
-                    ): url 
-                    for url in urls
-                }
-                
-                for future in concurrent.futures.as_completed(future_to_url):
-                    result = future.result()
-                    results.append(result)
-        
+        with ThreadPoolExecutor(max_workers=self.parallel_workers) as executor:
+            for start in range(0, len(urls), self.batch_size):
+                batch = urls[start:start + self.batch_size]
+                futures = [executor.submit(self.check_single_site, url, **options) for url in batch]
+                # Finish this bounded batch before submitting the next one.
+                results.extend(future.result() for future in futures)
         return results
-    
+
     def generate_summary_report(self, results: List[Dict]) -> Dict:
-        """Generates summary report"""
-        total_sites = len(results)
-        successful_checks = len([r for r in results if r['success']])
-        failed_checks = total_sites - successful_checks
-        
-        # Header statistics
-        header_scores = []
-        ssl_scores = []
-        
-        for result in results:
-            if result['success'] and result['headers']:
-                header_scores.append(result['headers']['total_score'])
-            
-            if result['ssl']:
-                ssl_scores.append(result['ssl']['score']['total_score'])
-        
-        summary = {
-            'total_sites': total_sites,
-            'successful_checks': successful_checks,
-            'failed_checks': failed_checks,
-            'success_rate': (successful_checks / total_sites * 100) if total_sites > 0 else 0,
+        total = len(results)
+        successful = sum(bool(result['success']) for result in results)
+        scored = [r for r in results if (r.get('headers') or {}).get('success')]
+        header_scores = [r['headers']['total_score'] for r in scored]
+        ssl_scores = [r['ssl']['score']['total_score'] for r in results
+                      if (r.get('ssl') or {}).get('success')]
+        ranked = sorted(scored, key=lambda r: r['headers']['total_score'], reverse=True)
+        return {
+            'total_sites': total, 'successful_checks': successful,
+            'failed_checks': total - successful,
+            'success_rate': successful / total * 100 if total else 0,
             'average_header_score': sum(header_scores) / len(header_scores) if header_scores else 0,
             'average_ssl_score': sum(ssl_scores) / len(ssl_scores) if ssl_scores else 0,
-            'best_sites': [],
-            'worst_sites': []
+            'best_sites': [r['url'] for r in ranked[:5]],
+            'worst_sites': [r['url'] for r in ranked[-5:]]
         }
-        
-        # Top sites
-        if header_scores:
-            sorted_results = sorted(results, key=lambda x: x.get('headers', {}).get('total_score', 0), reverse=True)
-            summary['best_sites'] = [r['url'] for r in sorted_results[:5]]
-            summary['worst_sites'] = [r['url'] for r in sorted_results[-5:]]
-        
-        return summary
