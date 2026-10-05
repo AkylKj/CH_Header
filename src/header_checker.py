@@ -1,8 +1,8 @@
 
 import requests
-from typing import Dict, List, Optional
 from colorama import Fore, Style
-from typing import Tuple,List,Dict,Optional
+from typing import Dict, Tuple
+from .header_rules import analyze_csp, analyze_hsts, analyze_cookies
 
 SECURE_HEADERS = {
     'Strict-Transport-Security': {
@@ -145,48 +145,56 @@ SECURE_HEADERS = {
     }
 }
 
+class HeaderSnapshot(requests.structures.CaseInsensitiveDict):
+    """Mapping-compatible snapshot with repeated values and response URL."""
+    def __init__(self, response):
+        super().__init__(response.headers)
+        self.final_url = response.url
+        self.values_by_name = {}
+        raw_headers = response.raw.headers
+        for name in raw_headers:
+            self.values_by_name[name.lower()] = list(raw_headers.getlist(name))
+
+    def get_values(self, name):
+        return self.values_by_name.get(name.lower(), [])
+
+
 def get_headers(
     url: str, timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/0.0.3',
+    user_agent: str = 'Security-Header-Checker/0.0.4',
     follow_redirects: bool = True, max_redirects: int = 5,
     verify_ssl: bool = True
 ) -> Dict[str, str]:
-    """Fetch headers without downloading the body; transport errors propagate."""
+    """Copy headers, including repeated field values, before closing the response."""
     with requests.Session() as session:
         session.max_redirects = max_redirects
         headers = {'User-Agent': user_agent} if user_agent else {}
         with session.get(url, timeout=timeout, headers=headers,
                          allow_redirects=follow_redirects, verify=verify_ssl,
                          stream=True) as response:
-            return response.headers.copy()
+            return HeaderSnapshot(response)
 
 # Analyze headers from the site
 def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
+    """Single-value compatibility helper; HSTS assumes HTTPS without response context."""
 
     if header_name not in SECURE_HEADERS:
         return 0, "INFO", f"Unknown header: {header_name}"
 
+    special = {
+        'Strict-Transport-Security': lambda: analyze_hsts([header_value], 'https://header-only.invalid'),
+        'Content-Security-Policy': lambda: analyze_csp([header_value]),
+        'Set-Cookie': lambda: analyze_cookies([header_value]),
+    }
+    if header_name in special:
+        result = special[header_name]()
+        return result['score'], result['status'], result['description']
     header_info = SECURE_HEADERS[header_name]
     header_type = header_info.get('type', 'presence')  
     
     if header_type == 'absence':
         
         return 0, "BAD", f"❌ {header_info['description']} - should be hidden"
-    
-    elif header_type == 'flags':
-        
-        value = header_value.lower()
-        found_flags = 0
-        for flag in header_info['good_values']:
-            if flag.lower() in value:
-                found_flags += 1
-        
-        if found_flags >= 2: 
-            return header_info['score'], "GOOD", f"✅ {header_info['description']}"
-        elif found_flags >= 1:
-            return header_info['score'] // 2, "WARNING", f"⚠️ {header_info['description']} - partial security"
-        else:
-            return 0, "BAD", f"❌ {header_info['description']} - no security flags"
     
     else:  
         
@@ -199,85 +207,62 @@ def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
     
 
 def check_security_headers(
-    url: str,
-    timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/0.0.3',
-    follow_redirects: bool = True,
-    max_redirects: int = 5,
+    url: str, timeout: int = 10,
+    user_agent: str = 'Security-Header-Checker/0.0.4',
+    follow_redirects: bool = True, max_redirects: int = 5,
     verify_ssl: bool = True
 ) -> Dict:
-
     try:
-        headers = requests.structures.CaseInsensitiveDict(get_headers(
-            url, timeout=timeout, user_agent=user_agent,
-            follow_redirects=follow_redirects, max_redirects=max_redirects,
-            verify_ssl=verify_ssl
-        ))
+        snapshot = get_headers(url, timeout=timeout, user_agent=user_agent,
+                               follow_redirects=follow_redirects,
+                               max_redirects=max_redirects, verify_ssl=verify_ssl)
     except requests.exceptions.RequestException as exc:
         return {'success': False, 'url': url,
                 'error': f'{type(exc).__name__}: {exc}'}
-
+    headers = requests.structures.CaseInsensitiveDict(snapshot)
+    final_url = getattr(snapshot, 'final_url', url)
+    def values(name):
+        if isinstance(snapshot, HeaderSnapshot):
+            return snapshot.get_values(name)
+        # Mapping-only library input is one field, never split cookies on commas.
+        return [headers[name]] if name in headers else []
     results = {
-        'success': True,
-        'url': url,
-        'total_score': 0,
-        'max_score': sum(header['score'] for header in SECURE_HEADERS.values()),
-        'headers': {},
-        'summary': {
-            'good': 0,
-            'bad': 0,
-            'info': 0,
-            'warning': 0,
-        }
+        'success': True, 'url': url, 'final_url': final_url,
+        'total_score': 0, 'max_score': 0, 'headers': {},
+        'header_values': (snapshot.values_by_name if isinstance(snapshot, HeaderSnapshot)
+                          else {name.lower(): [value] for name, value in headers.items()}),
+        'summary': {'good': 0, 'bad': 0, 'info': 0, 'warning': 0},
     }
-
-    for header_name in SECURE_HEADERS:
-        header_info = SECURE_HEADERS[header_name]
-        header_type = header_info.get('type', 'presence')
-        
-        if header_name in headers:
-            if header_type == 'absence':
-                
-                score, status, description = analyze_header(header_name, headers[header_name])
-                results['headers'][header_name] = {
-                    'value': headers[header_name],
-                    'score': score,
-                    'status': status,
-                    'description': description,
-                }
-                results['total_score'] += score
-                results['summary'][status.lower()] += 1
-            else:
-               
-                score, status, description = analyze_header(header_name, headers[header_name])
-                results['headers'][header_name] = {
-                    'value': headers[header_name],
-                    'score': score,
-                    'status': status,
-                    'description': description,
-                }
-                results['total_score'] += score
-                results['summary'][status.lower()] += 1
-        
+    specials = {
+        'Strict-Transport-Security': lambda: analyze_hsts(values('Strict-Transport-Security'), final_url),
+        'Content-Security-Policy': lambda: analyze_csp(values('Content-Security-Policy')),
+        'Set-Cookie': lambda: analyze_cookies(values('Set-Cookie')),
+    }
+    for name, config in SECURE_HEADERS.items():
+        if name in specials:
+            result = specials[name]()
         else:
-            if header_type == 'absence':
-                results['headers'][header_name] = {
-                    'value': 'Not found',
-                    'score': header_info['score'],
-                    'status': 'GOOD',
-                    'description': f"✅ {header_info['description']} - properly hidden",
-                }
-                results['total_score'] += header_info['score']
-                results['summary']['good'] += 1
+            if name in headers:
+                score, status, description = analyze_header(name, headers[name])
+                value = headers[name]
+            elif config.get('type') == 'absence':
+                score, status, description = config['score'], 'GOOD', config['description'] + ' - properly hidden'
+                value = 'Not found'
             else:
-                results['headers'][header_name] = {
-                    'value': 'Not found',
-                    'score': 0,
-                    'status': 'BAD',
-                    'description': f"❌ {header_info['description']} - not found",
-                }
-                results['summary']['bad'] += 1
-    
+                score, status, description = 0, 'BAD', config['description'] + ' - not found'
+                value = 'Not found'
+            result = {'value': value, 'score': score, 'status': status, 'description': description}
+        results['headers'][name] = result
+        results['total_score'] += result['score']
+        if result.get('applicable', True):
+            results['max_score'] += config['score']
+        results['summary'][result['status'].lower()] += 1
+    if values('Content-Security-Policy-Report-Only'):
+        report_only = analyze_csp(values('Content-Security-Policy-Report-Only'), report_only=True)
+        results['headers']['Content-Security-Policy-Report-Only'] = report_only
+        results['summary']['info'] += 1
+    results['percentage'] = (round(results['total_score'] / results['max_score'] * 100, 1)
+                             if results['max_score'] else None)
     return results
 
 
@@ -285,6 +270,10 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
     if not verbose:
         return
     
+    if 'findings' in header_data:
+        print(f"Parsed {header_name}: {header_data.get('parsed', {})}")
+        print(f"Applicable to score: {header_data['applicable']}")
+        return
     print(f"\n{Fore.CYAN}🔍 Detailed Analysis: {header_name}{Style.RESET_ALL}")
     print("-" * 50)
     

@@ -3,7 +3,7 @@
 > Powerful CLI tool for analyzing website security headers
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/Version-0.0.3-orange.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.0.4-orange.svg)](ROADMAP.md)
 
 [Русский](README.ru.md) | [English](Readme.md)
 
@@ -32,7 +32,7 @@ python main.py --file urls.txt --parallel 5
 python main.py https://example.com --ssl-check --response-analysis
 ```
 
-## v0.0.3: installation and behavior
+## v0.0.4: installation and behavior
 
 Target support: Python 3.10–3.14. Use an isolated environment:
 
@@ -56,12 +56,50 @@ are exported even when one module fails. Exit codes: 0 for successful checks
 and export, 1 for check/export failures, 2 for invalid arguments.
 
 Scores are project heuristics, not an industry standard or a full audit.
-CSP/HSTS/cookie value matching remains basic. UNKNOWN TLS probes are inconclusive;
+CSP/HSTS/cookies use structured rules; other headers still use basic matching. UNKNOWN TLS probes are inconclusive;
 only the negotiated cipher suite is inspected. Untrusted certificate details
 may be displayed without granting verified status.
 
 Tests, pytest configuration and the test CI workflow were removed at the
 user's request. Automated checks are not included in the current checkout.
+
+## Changes in 0.0.4
+
+- **HSTS: 0/5/10 points.** Invalid, repeated or zero max-age and HSTS over
+  HTTP earn 0; less than one year earns 5; at least one year earns 10.
+  includeSubDomains and preload are optional, independently reported settings.
+- **CSP: up to 15 points.** Up to 9 for script restrictions, plus 3 each
+  for object-src and base-uri. Evaluation considers directive fallback,
+  nonce/hash and strict-dynamic, without verifying page content or nonce entropy.
+  Report-only is diagnostic. Multiple enforced policies are parsed separately;
+  their combined effect is not assessed, so CSP becomes INFO and is excluded
+  from the denominator. Individual policy findings are not conclusions about
+  combined protection.
+- **Cookies: up to 4 points.** Each Set-Cookie field is assessed separately;
+  the worst applicable cookie determines the score. Missing Secure earns 0;
+  missing/invalid SameSite caps the score at 2; missing HttpOnly caps it at 3.
+  SameSite=None with Secure is valid. JavaScript-readable cookies may intentionally
+  omit HttpOnly. Missing cookies and valid deletion cookies are not penalised.
+
+GOOD means compliance with these rules; WARNING indicates a weakness or contextual
+warning; BAD identifies invalid configuration or dangerous/insufficient permissions;
+INFO provides an explanation or indicates no overall assessment. Inapplicable
+checks are excluded from max_score; a zero denominator displays N/A. Scores across
+versions or applicability sets are not directly comparable.
+
+Existing JSON fields are retained, with final_url, header_values, percentage and findings /
+parsed / applicable metadata added; cookie results include a cookies list.
+CLI, TXT and CSV display reasons and recommendations. CSV columns are unchanged;
+individual cookie rows contain names and ordinal numbers. No new CLI flags.
+
+Example:
+
+```bash
+python main.py https://example.com --follow-redirects --verbose --output report.json
+```
+
+Only changes, links, version references and diff formatting were reviewed for
+v0.0.4. Automated tests and runtime checks were not run at the user's request.
 
 ## 📋 Supported Headers
 

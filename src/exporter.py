@@ -6,6 +6,13 @@ from pathlib import Path
 COLUMNS = ['URL', 'Module', 'Check', 'Value', 'Status', 'Score', 'Error']
 
 
+def _finding_text(item):
+    message = item['message']
+    if item.get('recommendation'):
+        message += ' Recommendation: ' + item['recommendation']
+    return message
+
+
 def report_rows(report):
     sites = report.get('results', [report])
     for site in sites:
@@ -23,6 +30,16 @@ def report_rows(report):
             if module == 'headers':
                 for name, detail in data.get('headers', {}).items():
                     yield row(name, detail.get('value', ''), detail.get('status', 'INFO'), detail.get('score', ''))
+                    for index, item in enumerate(detail.get('findings', []), 1):
+                        yield row(f'{name}/finding#{index}', _finding_text(item), item['status'])
+                    for cookie in detail.get('cookies', []):
+                        label = f"Set-Cookie/#{cookie['index']} ({cookie['name']})"
+                        yield row(label, cookie['value'], cookie['status'], cookie['score'])
+                if 'total_score' in data:
+                    value = f"{data['total_score']}/{data['max_score']}" if data['max_score'] else 'N/A (no applicable checks)'
+                    yield row('score', value, 'INFO', data['total_score'] if data['max_score'] else '')
+                if data.get('final_url'):
+                    yield row('final_url', data['final_url'])
             elif module == 'ssl':
                 for name in ('certificate', 'protocols', 'ciphers'):
                     detail = data.get(name)

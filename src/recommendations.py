@@ -12,13 +12,13 @@ class SecurityRecommendations:
                 'missing': [
                     "❌ HSTS header is missing",
                     "🔧 Add Strict-Transport-Security header to force HTTPS",
-                    "📝 Example: max-age=31536000; includeSubDomains; preload",
+                    "📝 Example: max-age=31536000 (includeSubDomains/preload are optional)",
                     "⚠️ Warning: Once enabled, HTTPS cannot be disabled for max-age period"
                 ],
                 'weak': [
                     "⚠️ HSTS max-age is too short",
                     "🔧 Increase max-age to at least 31536000 (1 year)",
-                    "📝 Recommended: max-age=63072000; includeSubDomains; preload"
+                    "📝 Recommended: max-age=63072000 (includeSubDomains/preload are optional)"
                 ]
             },
             'Content-Security-Policy': {
@@ -94,7 +94,7 @@ class SecurityRecommendations:
             'Set-Cookie': {
                 'weak': [
                     "⚠️ Cookies lack security flags",
-                    "🔧 Add Secure, HttpOnly, and SameSite flags",
+                    "🔧 Use Secure and explicit SameSite; use HttpOnly when JavaScript access is not required",
                     "📝 Example: Set-Cookie: session=abc123; Secure; HttpOnly; SameSite=Strict"
                 ]
             },
@@ -436,6 +436,9 @@ class SecurityRecommendations:
         
         issues_found = 0
         for header_name, header_data in results['headers'].items():
+            if 'findings' in header_data:
+                issues_found += sum(item['status'] in ('BAD', 'WARNING') for item in header_data['findings'])
+                continue
             if header_data['status'] in ['BAD', 'INFO']:
                 recommendations = self.get_recommendations_for_header(
                     header_name, header_data['status'], header_data['value']
@@ -456,7 +459,7 @@ class SecurityRecommendations:
                                 print(f"      {line}")
         
         if issues_found == 0:
-            print(f"\n{Fore.GREEN}🎉 No security issues found! Your headers are well configured.{Style.RESET_ALL}")
+            print(f"\n{Fore.GREEN}🎉 No issues identified by these rules; this is not a full security audit.{Style.RESET_ALL}")
         else:
             print(f"\n{Fore.YELLOW}📊 Total issues found: {issues_found}{Style.RESET_ALL}")
             print(f"{Fore.CYAN}💡 Fix these issues to improve your security score.{Style.RESET_ALL}")

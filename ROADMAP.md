@@ -1,170 +1,173 @@
-# 🛡️ Security Header Checker - Roadmap
+# Security Header Checker — Roadmap
 
-## 📋 Обзор проекта
-CLI приложение для проверки безопасности веб-сайтов по HTTP заголовкам. Анализирует заголовки безопасности и даёт рекомендации по улучшению.
+## Project overview
 
----
+A Python CLI for inspecting HTTP security headers, TLS configuration and response
+metadata, with actionable findings and TXT/JSON/CSV reports.
 
-## ✅ Завершённые функции
+Checkboxes describe implementation status, not verified security or automated
+validation. Scores are project heuristics, not an industry standard or a full audit.
 
-### v0.0.1 - Базовая версия
-- [x] CLI интерфейс с argparse
-- [x] Проверка основных заголовков безопасности
-- [x] Цветной вывод результатов
-- [x] Подсчёт общего балла безопасности
-- [x] Детальный отчёт по каждому заголовку
-- [x] Оценка уровня безопасности (Отлично/Средне/Плохо)
-- [x] Обработка ошибок и валидация URL
+## Version history
 
-### v0.0.2 - Расширенная версия
-- [x] **Сохранение результатов в файл**
-  - [x] Флаг `--output` для сохранения в текстовый файл
-  - [x] Поддержка форматов: .txt, .json, .csv
+### v0.0.1 — Initial release
 
-- [x] **Улучшенный verbose режим**
-  - [x] Подробная информация о каждом заголовке
-  - [x] Рекомендации по исправлению проблем
-  - [x] Технические детали и примеры
+- [x] argparse CLI and HTTP(S) URL validation
+- [x] Basic security-header checks and per-header reports
+- [x] Coloured terminal output
+- [x] Weighted scores and overall security assessment
+- [x] Initial error handling
 
-- [x] **Дополнительные CLI опции**
-  - [x] `--timeout` - настройка таймаута запросов
-  - [x] `--user-agent` - кастомный User-Agent
-  - [x] `--follow-redirects` - следование редиректам
-  - [x] `--version` - вывод версии программы
+### v0.0.2 — Expanded features
 
-- [x] **Дополнительные заголовки безопасности**
-  - [x] `Server` - информация о веб-сервере
-  - [x] `X-Powered-By` - технологии сайта
-  - [x] `Cache-Control` - политика кэширования
-  - [x] `Set-Cookie` - безопасность куки
-  - [x] `Clear-Site-Data` - очистка данных
-  - [x] `Cross-Origin-Embedder-Policy`
-  - [x] `Cross-Origin-Opener-Policy`
-  - [x] `Cross-Origin-Resource-Policy`
+- [x] --output with TXT, JSON and CSV export
+- [x] Verbose explanations, recommendations and configuration examples
+- [x] --timeout, --user-agent, --follow-redirects and --version
+- [x] Server and X-Powered-By disclosure checks
+- [x] Cache-Control, Set-Cookie and Clear-Site-Data checks
+- [x] COEP, COOP and CORP checks
+- [x] CORS headers and legacy-browser header checks
+- [x] Initial certificate, TLS protocol and negotiated-cipher analysis
+- [x] URL lists from --file and --urls
+- [x] --parallel, --batch-size and bulk summaries
+- [x] Response status, server metadata and additional response headers
 
-- [x] **Анализ SSL/TLS**
-  - [x] Проверка сертификатов
-  - [x] Поддерживаемые протоколы
-  - [x] Шифрование
+These entries record the original implementation. Export, TLS and bulk behavior
+required corrections delivered in v0.0.3.
 
-- [x] **Проверка нескольких сайтов**
-  - [x] Список URL из файла (`--file urls.txt`)
-  - [x] URL через запятую (`--urls url1,url2,url3`)
-  - [x] Параллельная проверка (`--parallel 5`)
-  - [x] Размер пакета (`--batch-size 10`)
-  - [x] Сводный отчёт по всем сайтам
+### v0.0.3 — Stabilization
 
-- [x] **Заголовки ответов**
-  - [x] Анализ заголовков ответов сервера
-  - [x] HTTP статус коды
-  - [x] Информация о сервере
-  - [x] Дополнительные заголовки безопасности
+- [x] Session.max_redirects in both HTTP modules
+- [x] Case-insensitive headers and explicit HTTP connection cleanup
+- [x] Correct single/bulk --ssl-only and --response-only execution
+- [x] Mutually exclusive modes, URL validation and positive CLI limits
+- [x] WARNING summary handling and detailed module errors
+- [x] Independent module execution during partial failures
+- [x] Bulk ranking restricted to available scores
+- [x] Bounded batches and worker counts
+- [x] Composed single/bulk TXT, JSON and CSV reports
+- [x] Certificate trust/hostname verification and separate DER retrieval on failure
+- [x] URL parsing with urlsplit, including IPv6
+- [x] SUPPORTED / UNSUPPORTED / UNKNOWN TLS probe results
+- [x] Reachable TLS score denominator and documented limitations
+- [x] .gitignore, removal of tracked bytecode and unused dependencies
+- [x] Version and README link corrections
+- [x] Removal of tests, pytest configuration and test CI at the user's request
 
----
+Before removal, 88 tests passed locally on Windows / Python 3.14. The full
+OS/Python matrix and remote CI were not verified. That historical result does
+not validate v0.0.4. Local v0.0.3 commits exist; no push or release was published.
 
-## ✅ v0.0.3 — Стабилизация
+### v0.0.4 — Structured CSP, HSTS and cookie analysis
 
-Обновление исправляет ранее заявленные возможности v0.0.2: экспорт, SSL/TLS,
-отдельные режимы проверки, обработку предупреждений и массовую сводку.
-Исторические отметки выше отражают первоначальную реализацию, а не полноту аудита.
+- [x] Preserve separate repeated header values before response cleanup
+- [x] Read each Set-Cookie field without splitting Expires on commas
+- [x] Preserve the final response URL for HTTPS applicability
+- [x] Parse HSTS directives, validate max-age and identify disabled/short policies
+- [x] Treat includeSubDomains/preload as optional; do not claim preload registration
+- [x] Parse CSP directives and source tokens, retaining the first duplicate directive
+- [x] Evaluate script-src-elem/attr and script-src/default-src fallback
+- [x] Contextual nonce/hash, unsafe-inline, unsafe-eval and strict-dynamic findings
+- [x] Separate object-src and base-uri scoring
+- [x] Parse multiple enforced policies separately without claiming a combined assessment
+- [x] Report-only CSP diagnostics without enforcement credit
+- [x] Per-cookie Secure, HttpOnly and SameSite analysis
+- [x] Exclude missing cookies and valid cookie deletions from scoring
+- [x] Aggregate cookie scores using the worst applicable cookie
+- [x] Structured findings, parsed data and applicability metadata
+- [x] Findings and recommendations in CLI, TXT, JSON and CSV
+- [x] Individual cookie CSV rows with names and ordinal numbers
+- [x] Contextual max_score and N/A when no score is available
+- [x] Version 0.0.4 in CLI, User-Agent and both READMEs
+- [x] English roadmap with preserved version history
 
-- [x] Лимит редиректов через Session.max_redirects в обоих HTTP-модулях
-- [x] Нечувствительность заголовков к регистру и закрытие HTTP-соединений
-- [x] Одиночные и массовые --ssl-only / --response-only, взаимоисключающие флаги
-- [x] Статус warning и сохранение подробных ошибок каждого модуля
-- [x] Независимое выполнение проверок при частичных ошибках
-- [x] Сортировка только полученных оценок в массовой сводке
-- [x] Ограничение пакета через --batch-size и работников через --parallel
-- [x] Проверка положительных параметров CLI и HTTP(S) URL
-- [x] Экспорт составных одиночных и массовых отчётов в TXT/JSON/CSV
-- [x] Проверка доверия и hostname сертификата; отдельное чтение DER при ошибке доверия
-- [x] Разбор TLS-адресов через urlsplit, включая IPv6
-- [x] Статусы SUPPORTED / UNSUPPORTED / UNKNOWN для TLS-проб
-- [x] Максимум TLS-шкалы по реализованным критериям и описание ограничений
-- [x] .gitignore, удаление отслеживаемых .pyc и неиспользуемых зависимостей
-- [x] Версия 0.0.3 в CLI и обоих README, исправление ссылок
-- [x] Удаление тестов, настроек pytest и тестового CI по просьбе пользователя
+Implementation has been reviewed by reading changes and checking diff formatting,
+version references and documentation links. No automated tests or runtime checks
+were created or run for v0.0.4, at the user's request. Test infrastructure remains
+absent. The user approved a local commit. No push or release publication is authorized.
 
-До удаления существующий набор из 88 тестов прошёл на Windows / Python 3.14.
-Тесты и конфигурация тестового CI удалены по просьбе пользователя 5 октября
-2026 года. Повторный запуск проверок не выполнялся. Полная матрица Python/ОС
-и удалённый CI не проверялись. Изменения сохраняются локальными коммитами;
-push и публикация релиза не выполнялись.
+## Future work
 
----
+### 1. Analysis quality — high priority
 
-## 🚀 Следующие этапы
+- [ ] Model the combined enforcement of multiple CSP policies
+- [ ] Browser/content-aware validation of CSP nonces, hashes and source lists
+- [ ] Contextual CORS, Cache-Control and cross-origin header rules
+- [ ] Account for CSP frame-ancestors in framing-protection assessment
+- [ ] HTML / API / static-resource profiles
+- [ ] Remove X-Requested-With and X-UA-Compatible from the core rating
+- [ ] Revisit obsolete headers and X-XSS-Protection recommendations
+- [ ] Version the rule set and scoring model
+- [ ] More detailed certificate chain, key, algorithm and SAN inspection
+- [ ] Broader TLS assessment using an established external engine
 
-### 1. Качество анализа — высокий приоритет
+### 2. Reliability and documentation — high priority
 
-- [ ] Структурный разбор CSP и HSTS вместо совпадения подстрок
-- [ ] Проверка каждой cookie отдельно: Secure, HttpOnly, SameSite
-- [ ] Контекстный анализ CORS, Cache-Control и cross-origin заголовков
-- [ ] Учёт CSP frame-ancestors при оценке защиты от framing
-- [ ] Профили HTML / API / статические ресурсы и статус NOT_APPLICABLE
-- [ ] Исключение X-Requested-With и X-UA-Compatible из основного рейтинга
-- [ ] Пересмотр устаревших заголовков и рекомендаций X-XSS-Protection
-- [ ] Версионирование правил и шкалы, проверяемые причины выводов
-- [ ] Расширенная проверка цепочки сертификатов, ключей, алгоритмов и SAN
-- [ ] Расширенный TLS-анализ через проверенный отдельный движок
+- [ ] Retry/backoff and rate limiting
+- [ ] Reuse one HTTP response for header and response analysis
+- [ ] Detailed interpretation guide and FAQ
+- [ ] More report and server-configuration examples
+- [ ] Reintroduce automated validation and CI only if explicitly requested
 
-### 2. Надёжность, тестирование и документация — высокий приоритет
+Tests and test CI are deferred at the user's request. The basic
+--response-analysis option and server identification already exist.
 
-- [ ] Запуск полной матрицы CI и устранение платформенных расхождений
-- [ ] Дополнительные регрессионные случаи при изменении правил
-- [ ] Retry/backoff и ограничение частоты запросов
-- [ ] Единое получение HTTP-ответа для анализа заголовков и ответа
-- [ ] Подробное руководство по трактовке выводов и FAQ
-- [ ] Примеры отчётов и конфигураций серверов
+### 3. Usability and automation — medium priority
 
-Тестирование и CI отложены по просьбе пользователя; тестовая папка и настройки удалены.
+- [ ] --format and --quiet / --no-color
+- [ ] --fail-on / --min-score for automation
+- [ ] Markdown reports and comparison with a previous JSON report
+- [ ] Filtering, sorting and contextual recommendations
+- [ ] HTML reports and user templates
+- [ ] Configuration files and custom rule settings
+- [ ] Logging and additional summaries
 
-### 3. Удобство и автоматизация — средний приоритет
+### 4. Extensions — deferred until a demonstrated need
 
-- [ ] --format, --quiet / --no-color
-- [ ] --fail-on / --min-score для CI
-- [ ] Markdown-отчёты и сравнение с предыдущим JSON
-- [ ] Фильтрация, сортировка и контекстные рекомендации
-- [ ] HTML-отчёт и пользовательские шаблоны
-- [ ] Конфигурационные файлы и настройки правил
-- [ ] Логирование и дополнительные сводки
+- [ ] DNS inspection
+- [ ] File/directory discovery
+- [ ] General --full-scan / --quick-scan modes
+- [ ] FastAPI web API
+- [ ] Expanded technology detection
+- [ ] Safe OPTIONS / HEAD / CORS preflight inspection
+- [ ] Charts and security trends
+- [ ] Asynchronous HTTP only after performance measurements
 
-Базовый --response-analysis и распознавание сервера уже существуют;
-повторно как новые функции не планируются.
+PUT/DELETE in Allow alone is not evidence of a vulnerability. pandas, matplotlib
+and aiohttp will not be added without a concrete use case.
 
-### 4. Расширения — отложены до подтверждённой потребности
+## Current stack and limitations
 
-- [ ] DNS-анализ
-- [ ] Поиск директорий и файлов
-- [ ] Универсальные --full-scan / --quick-scan
-- [ ] Веб-API на FastAPI
-- [ ] Расширенное определение технологий
-- [ ] Безопасные OPTIONS / HEAD / CORS preflight проверки
-- [ ] Графики и тренды безопасности
-- [ ] Асинхронный HTTP-движок — только после измерений производительности
+Target Python versions: 3.10–3.14. Runtime dependencies: requests, colorama and
+cryptography. Standard-library components include argparse, ssl and
+concurrent.futures. No new dependencies are required by v0.0.4.
 
-Наличие PUT/DELETE в Allow само по себе не является доказательством уязвимости.
-pandas, matplotlib и aiohttp не добавляются без конкретной задачи.
+HSTS has a maximum of 10 points, CSP 15 and cookies 4. Checks marked INFO with
+applicable=false are excluded from the denominator. Percentages across different
+releases or different applicability sets are not directly comparable.
 
----
+CSP evaluation is a configuration heuristic, not browser emulation. Multiple
+policies are parsed separately; their combined effect is not scored. Policy-level
+findings for those policies are observations, not a conclusion about the complete
+response. Report-only policies never earn enforcement points. Nonce randomness,
+hash-to-content matching and page functionality are not verified. X-Frame-Options
+scoring is unchanged. Other headers still use basic matching.
 
-## 🛠️ Текущий стек
+Cookies are assessed only from the final response; their application purpose is
+unknown. Lack of HttpOnly is a contextual warning. Absence of cookies and valid
+deletion cookies are not security failures.
 
-- Python 3.10–3.14 — целевая матрица поддержки
-- requests — HTTP-запросы
-- colorama — цветной CLI
-- cryptography — разбор сертификатов
-- argparse, ssl, concurrent.futures — стандартная библиотека
+TLS behavior is unchanged in v0.0.4. UNKNOWN probes depend on client/network
+capabilities and do not establish lack of server support. Only the negotiated
+cipher is inspected. The TLS scale has a maximum of 95, and incomplete probe
+results are labelled Incomplete.
 
-## Ограничения оценки
+## References
 
-Баллы — собственная эвристика проекта, а не отраслевой стандарт и не гарантия
-безопасности сайта. В v0.0.3 значения заголовков всё ещё анализируются базовыми
-правилами. TLS-пробы зависят от возможностей локального клиента; UNKNOWN не
-означает отсутствие поддержки сервером. Проверяется только согласованный
-шифр, а не весь набор cipher suites. Максимум текущей TLS-шкалы — 95;
-неизвестные проверки не получают баллов и отчёт помечается Incomplete.
+- [CSP Level 3](https://www.w3.org/TR/CSP3/)
+- [MDN: Strict-Transport-Security](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security)
+- [MDN: Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)
 
-*Последнее обновление: 5 октября 2026 года*
-*Версия проекта: 0.0.3*
-*Версия roadmap: 1.4*
+Last updated: October 5, 2026
+Project version: 0.0.4
+Roadmap version: 1.5

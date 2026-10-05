@@ -8,9 +8,9 @@ from src.exporter import export_results
 from src.header_checker import print_verbose_header_info
 from src.recommendations import SecurityRecommendations
 
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 LIMITATIONS = ('Scores are project heuristics, not a security standard or a full audit. '
-               'Header values still use basic matching; detailed CSP/HSTS/cookie rules are planned.')
+               'CSP/HSTS/cookies use structured rules; combined CSP policies are excluded from scoring. Other headers still use basic matching.')
 
 
 def positive_int(value):
@@ -58,10 +58,18 @@ def print_site(result, verbose=False):
     if headers is not None:
         print('Security Header Check Results:')
         if headers.get('success'):
-            print(f"Total Score: {headers['total_score']}/{headers['max_score']}")
+            if headers['max_score']:
+                print(f"Total Score: {headers['total_score']}/{headers['max_score']} ({headers.get('percentage')}%)")
+            else:
+                print('Total Score: N/A (no applicable checks)')
+            print(f"Final URL: {headers.get('final_url', result['url'])}")
             for name, detail in headers['headers'].items():
-                color = Fore.GREEN if detail['status'] == 'GOOD' else Fore.YELLOW if detail['status'] == 'WARNING' else Fore.RED
+                color = Fore.GREEN if detail['status'] == 'GOOD' else Fore.YELLOW if detail['status'] == 'WARNING' else Fore.CYAN if detail['status'] == 'INFO' else Fore.RED
                 print(f"  {name}: {detail['value']} [{color}{detail['status']}{Style.RESET_ALL}] ({detail['score']})")
+                for item in detail.get('findings', []):
+                    print(f"    [{item['status']}] {item['message']}")
+                    if item.get('recommendation'):
+                        print(f"      Recommendation: {item['recommendation']}")
                 if verbose:
                     print_verbose_header_info(name, detail, verbose=True)
             print('Summary: ' + ', '.join(f'{key}: {value}' for key, value in headers['summary'].items()))
@@ -146,7 +154,8 @@ def main(argv=None):
         for name in ('total_sites', 'successful_checks', 'failed_checks', 'success_rate'):
             print(f'{name}: {summary[name]}')
         if check_headers:
-            print(f"Average header score: {summary['average_header_score']:.1f}")
+            average = summary['average_header_score']
+            print(f"Average header score: {average:.1f}" if average is not None else 'Average header score: N/A')
             print(f"Best sites: {summary['best_sites']}")
             print(f"Worst sites: {summary['worst_sites']}")
         if check_ssl:

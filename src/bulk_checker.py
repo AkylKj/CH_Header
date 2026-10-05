@@ -87,7 +87,8 @@ class BulkChecker:
     def generate_summary_report(self, results: List[Dict]) -> Dict:
         total = len(results)
         successful = sum(bool(result['success']) for result in results)
-        scored = [r for r in results if (r.get('headers') or {}).get('success')]
+        scored = [r for r in results if (r.get('headers') or {}).get('success')
+                  and r['headers'].get('max_score', 0) > 0]
         header_scores = [r['headers']['total_score'] for r in scored]
         ssl_scores = [r['ssl']['score']['total_score'] for r in results
                       if (r.get('ssl') or {}).get('success')]
@@ -96,7 +97,7 @@ class BulkChecker:
             'total_sites': total, 'successful_checks': successful,
             'failed_checks': total - successful,
             'success_rate': successful / total * 100 if total else 0,
-            'average_header_score': sum(header_scores) / len(header_scores) if header_scores else 0,
+            'average_header_score': sum(header_scores) / len(header_scores) if header_scores else None,
             'average_ssl_score': sum(ssl_scores) / len(ssl_scores) if ssl_scores else 0,
             'best_sites': [r['url'] for r in ranked[:5]],
             'worst_sites': [r['url'] for r in ranked[-5:]]
