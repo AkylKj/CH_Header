@@ -63,34 +63,6 @@ may be displayed without granting verified status.
 Tests, pytest configuration and the test CI workflow were removed at the
 user's request. Automated checks are not included in the current checkout.
 
-## Changes in 0.0.4
-
-- **HSTS: 0/5/10 points.** Invalid, repeated or zero max-age and HSTS over
-  HTTP earn 0; less than one year earns 5; at least one year earns 10.
-  includeSubDomains and preload are optional, independently reported settings.
-- **CSP: up to 15 points.** Up to 9 for script restrictions, plus 3 each
-  for object-src and base-uri. Evaluation considers directive fallback,
-  nonce/hash and strict-dynamic, without verifying page content or nonce entropy.
-  Report-only is diagnostic. Multiple enforced policies are parsed separately;
-  their combined effect is not assessed, so CSP becomes INFO and is excluded
-  from the denominator. Individual policy findings are not conclusions about
-  combined protection.
-- **Cookies: up to 4 points.** Each Set-Cookie field is assessed separately;
-  the worst applicable cookie determines the score. Missing Secure earns 0;
-  missing/invalid SameSite caps the score at 2; missing HttpOnly caps it at 3.
-  SameSite=None with Secure is valid. JavaScript-readable cookies may intentionally
-  omit HttpOnly. Missing cookies and valid deletion cookies are not penalised.
-
-GOOD means compliance with these rules; WARNING indicates a weakness or contextual
-warning; BAD identifies invalid configuration or dangerous/insufficient permissions;
-INFO provides an explanation or indicates no overall assessment. Inapplicable
-checks are excluded from max_score; a zero denominator displays N/A. Scores across
-versions or applicability sets are not directly comparable.
-
-Existing JSON fields are retained, with final_url, header_values, percentage and findings /
-parsed / applicable metadata added; cookie results include a cookies list.
-CLI, TXT and CSV display reasons and recommendations. CSV columns are unchanged;
-individual cookie rows contain names and ordinal numbers. No new CLI flags.
 
 Example:
 
