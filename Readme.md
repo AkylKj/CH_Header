@@ -60,9 +60,8 @@ CSP/HSTS/cookie value matching remains basic. UNKNOWN TLS probes are inconclusiv
 only the negotiated cipher suite is inspected. Untrusted certificate details
 may be displayed without granting verified status.
 
-Tests and CI configuration are present. Before interruption, 88 tests passed
-on Windows / Python 3.14. At the user's request, no further tests are being
-written or run. Remote CI and the full OS/Python matrix remain unverified.
+Tests, pytest configuration and the test CI workflow were removed at the
+user's request. Automated checks are not included in the current checkout.
 
 ## 📋 Supported Headers
 
