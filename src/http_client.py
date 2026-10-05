@@ -24,7 +24,7 @@ class HeaderSnapshot(requests.structures.CaseInsensitiveDict):
 
 def fetch_response(
     url: str, timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/0.0.5',
+    user_agent: str = 'Security-Header-Checker/0.0.6',
     follow_redirects: bool = True, max_redirects: int = 5,
     verify_ssl: bool = True
 ) -> HeaderSnapshot:

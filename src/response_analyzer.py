@@ -98,7 +98,8 @@ class ResponseAnalyzer:
             'Strict-Transport-Security', 'Content-Security-Policy', 'X-Frame-Options',
             'X-Content-Type-Options', 'X-XSS-Protection', 'Referrer-Policy',
             'Permissions-Policy', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Methods',
-            'Access-Control-Allow-Headers', 'Access-Control-Max-Age', 'X-Download-Options',
+            'Access-Control-Allow-Headers', 'Access-Control-Max-Age',
+            'Access-Control-Allow-Credentials', 'X-Download-Options',
             'X-Permitted-Cross-Domain-Policies', 'X-Requested-With', 'X-UA-Compatible',
             'Cache-Control', 'Set-Cookie', 'Clear-Site-Data',
             'Cross-Origin-Embedder-Policy', 'Cross-Origin-Opener-Policy',
@@ -120,6 +121,10 @@ class ResponseAnalyzer:
                 result['security_headers'][header].update(
                     status='INFO', score=0, applicable=False,
                     description=LEGACY_HEADERS[header])
+            elif header == 'Access-Control-Allow-Credentials':
+                result['security_headers'][header].update(
+                    status='INFO', score=0, applicable=False,
+                    description='Credentialed CORS sharing metadata; syntax and context are assessed by the header module.')
         
         # Additional interesting headers
         additional_headers = [

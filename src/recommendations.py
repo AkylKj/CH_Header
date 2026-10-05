@@ -4,7 +4,7 @@ Module for generating security recommendations
 
 from typing import Dict, List
 from colorama import Fore, Style
-from .header_rules import LEGACY_HEADERS
+from .header_rules import LEGACY_HEADERS, CORS_HEADERS, CONTEXTUAL_HEADERS
 
 class SecurityRecommendations:
     def __init__(self):
@@ -79,25 +79,11 @@ class SecurityRecommendations:
                     "📝 This prevents technology fingerprinting"
                 ]
             },
-            'Cache-Control': {
-                'missing': [
-                    "❌ Cache-Control header is missing",
-                    "🔧 Add Cache-Control for sensitive pages",
-                    "📝 Example: Cache-Control: no-store, no-cache, must-revalidate"
-                ]
-            },
             'Set-Cookie': {
                 'weak': [
                     "⚠️ Cookies lack security flags",
                     "🔧 Use Secure and explicit SameSite; use HttpOnly when JavaScript access is not required",
                     "📝 Example: Set-Cookie: session=abc123; Secure; HttpOnly; SameSite=Strict"
-                ]
-            },
-            'Clear-Site-Data': {
-                'missing': [
-                    "❌ Clear-Site-Data header is missing",
-                    "🔧 Add Clear-Site-Data for logout functionality",
-                    "📝 Example: Clear-Site-Data: \"cache\", \"cookies\", \"storage\""
                 ]
             },
             'Cross-Origin-Embedder-Policy': {
@@ -121,39 +107,6 @@ class SecurityRecommendations:
                     "📝 Example: Cross-Origin-Resource-Policy: same-origin"
                 ]
             },
-            'Access-Control-Allow-Origin': {
-                'missing': [
-                    "❌ Access-Control-Allow-Origin header is missing",
-                    "🔧 Add CORS policy for cross-origin requests",
-                    "📝 Example: Access-Control-Allow-Origin: *"
-                ],
-                'weak': [
-                    "⚠️ Access-Control-Allow-Origin is too permissive",
-                    "🔧 Use specific origin instead of * for better security",
-                    "📝 Example: Access-Control-Allow-Origin: https://example.com"
-                ]
-            },
-            'Access-Control-Allow-Methods': {
-                'missing': [
-                    "❌ Access-Control-Allow-Methods header is missing",
-                    "🔧 Add allowed HTTP methods for CORS",
-                    "📝 Example: Access-Control-Allow-Methods: GET, POST, OPTIONS"
-                ]
-            },
-            'Access-Control-Allow-Headers': {
-                'missing': [
-                    "❌ Access-Control-Allow-Headers header is missing",
-                    "🔧 Add allowed headers for CORS requests",
-                    "📝 Example: Access-Control-Allow-Headers: Content-Type, Authorization"
-                ]
-            },
-            'Access-Control-Max-Age': {
-                'missing': [
-                    "❌ Access-Control-Max-Age header is missing",
-                    "🔧 Add CORS preflight caching for better performance",
-                    "📝 Example: Access-Control-Max-Age: 86400"
-                ]
-            },
             'X-Download-Options': {
                 'missing': [
                     "❌ X-Download-Options header is missing",
@@ -175,6 +128,16 @@ class SecurityRecommendations:
     def get_recommendations_for_header(self, header_name: str, status: str, value: str) -> List[str]:
         if header_name in LEGACY_HEADERS:
             return [LEGACY_HEADERS[header_name]]
+        if header_name in CORS_HEADERS:
+            return ['CORS is optional; choose sharing rules for the intended clients.',
+                    'Wildcard does not authorize credentialed sharing; a GET without Origin or preflight does not verify CORS.',
+                    'Use Vary: Origin only when the policy varies with the request Origin.']
+        if header_name == 'Cache-Control':
+            return ['Choose caching rules according to resource sensitivity and purpose.',
+                    'no-cache allows storage with validation; no-store forbids storage; private still permits browser storage.']
+        if header_name == 'Clear-Site-Data':
+            return ['Data clearing is optional and requires a potentially trustworthy origin.',
+                    'Use it only where clearing is intended; do not add it to every response. Browser execution is not verified.']
         if header_name not in self.recommendations:
             return []
         
@@ -189,7 +152,7 @@ class SecurityRecommendations:
         return []
     
     def get_implementation_examples(self, header_name: str) -> Dict:
-        if header_name in LEGACY_HEADERS:
+        if header_name in LEGACY_HEADERS or header_name in CONTEXTUAL_HEADERS:
             return {}
         examples = {
             'Strict-Transport-Security': {
@@ -305,53 +268,6 @@ class SecurityRecommendations:
                     "app.use(helmet.permittedCrossDomainPolicies());"
                 ]
             },
-            'Access-Control-Allow-Origin': {
-                'Apache': [
-                    "Header always set Access-Control-Allow-Origin \"*\""
-                ],
-                'Nginx': [
-                    "add_header Access-Control-Allow-Origin \"*\" always;"
-                ],
-                'Express.js': [
-                    "app.use(cors({ origin: '*' }));"
-                ],
-                'Django': [
-                    "CORS_ALLOW_ALL_ORIGINS = True"
-                ]
-            },
-            'Access-Control-Allow-Methods': {
-                'Apache': [
-                    "Header always set Access-Control-Allow-Methods \"GET, POST, OPTIONS\""
-                ],
-                'Nginx': [
-                    "add_header Access-Control-Allow-Methods \"GET, POST, OPTIONS\" always;"
-                ],
-                'Express.js': [
-                    "app.use(cors({ methods: ['GET', 'POST', 'OPTIONS'] }));"
-                ]
-            },
-            'Access-Control-Allow-Headers': {
-                'Apache': [
-                    "Header always set Access-Control-Allow-Headers \"Content-Type, Authorization\""
-                ],
-                'Nginx': [
-                    "add_header Access-Control-Allow-Headers \"Content-Type, Authorization\" always;"
-                ],
-                'Express.js': [
-                    "app.use(cors({ allowedHeaders: ['Content-Type', 'Authorization'] }));"
-                ]
-            },
-            'Access-Control-Max-Age': {
-                'Apache': [
-                    "Header always set Access-Control-Max-Age \"86400\""
-                ],
-                'Nginx': [
-                    "add_header Access-Control-Max-Age \"86400\" always;"
-                ],
-                'Express.js': [
-                    "app.use(cors({ maxAge: 86400 }));"
-                ]
-            },
             'X-Download-Options': {
                 'Apache': [
                     "Header always set X-Download-Options \"noopen\""
@@ -415,4 +331,4 @@ class SecurityRecommendations:
             print(f"\n{Fore.GREEN}🎉 No issues identified by these rules; this is not a full security audit.{Style.RESET_ALL}")
         else:
             print(f"\n{Fore.YELLOW}📊 Total issues found: {issues_found}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}💡 Fix these issues to improve your security score.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}💡 Review these findings in context; informational policies do not affect the score.{Style.RESET_ALL}")

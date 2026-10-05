@@ -3,7 +3,9 @@ import requests
 from colorama import Fore, Style
 from typing import Dict, Tuple
 from .header_rules import (analyze_csp, analyze_hsts, analyze_cookies,
-                           analyze_framing, analyze_legacy, LEGACY_HEADERS)
+                           analyze_framing, analyze_legacy, LEGACY_HEADERS,
+                           analyze_cors, analyze_cache_control, analyze_clear_site_data,
+                           CORS_HEADERS, CONTEXTUAL_HEADERS)
 from .http_client import HeaderSnapshot, fetch_response
 
 SECURE_HEADERS = {
@@ -51,27 +53,33 @@ SECURE_HEADERS = {
     },
     'Access-Control-Allow-Origin': {
         'description': 'CORS policy for cross-origin requests',
-        'good_values': ['*', 'https://', 'http://'],
-        'score': 3,
-        'type': 'presence'
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'Access-Control-Allow-Methods': {
         'description': 'Allowed HTTP methods for CORS',
-        'good_values': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        'score': 2,
-        'type': 'presence'
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'Access-Control-Allow-Headers': {
         'description': 'Allowed headers for CORS requests',
-        'good_values': ['Content-Type', 'Authorization', 'X-Requested-With'],
-        'score': 2,
-        'type': 'presence'
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'Access-Control-Max-Age': {
         'description': 'CORS preflight caching duration',
-        'good_values': ['86400', '3600', '1800'],
-        'score': 2,
-        'type': 'presence'
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
+    },
+    'Access-Control-Allow-Credentials': {
+        'description': 'Permission for credentialed cross-origin sharing',
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'X-Download-Options': {
         'description': 'Protection against file download attacks',
@@ -110,10 +118,10 @@ SECURE_HEADERS = {
         'type': 'absence'
     },
     'Cache-Control': {
-        'description': 'Cache control policy for security',
-        'good_values': ['no-store', 'no-cache', 'private'],
-        'score': 3,
-        'type': 'presence'
+        'description': 'Context-dependent HTTP caching policy',
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'Set-Cookie': {
         'description': 'Cookie security settings',
@@ -122,10 +130,10 @@ SECURE_HEADERS = {
         'type': 'flags'
     },
     'Clear-Site-Data': {
-        'description': 'Clear site data policy',
-        'good_values': ['cache', 'cookies', 'storage'],
-        'score': 3,
-        'type': 'presence'
+        'description': 'Optional browser data-clearing request',
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'Cross-Origin-Embedder-Policy': {
         'description': 'Cross-origin embedder policy',
@@ -149,7 +157,7 @@ SECURE_HEADERS = {
 
 def get_headers(
     url: str, timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/0.0.5',
+    user_agent: str = 'Security-Header-Checker/0.0.6',
     follow_redirects: bool = True, max_redirects: int = 5,
     verify_ssl: bool = True
 ) -> Dict[str, str]:
@@ -160,7 +168,7 @@ def get_headers(
 
 # Analyze headers from the site
 def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
-    """Single-value compatibility helper; HSTS assumes HTTPS without response context."""
+    """Single-value helper; HSTS/data clearing assume HTTPS, CORS lacks sibling fields."""
 
     if header_name not in SECURE_HEADERS:
         return 0, "INFO", f"Unknown header: {header_name}"
@@ -168,11 +176,16 @@ def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
     if header_name in LEGACY_HEADERS:
         result = analyze_legacy(header_name, [header_value] if header_value else [])
         return result['score'], result['status'], result['description']
+    if header_name in CORS_HEADERS:
+        result = analyze_cors({header_name.lower(): [header_value] if header_value else []})[header_name]
+        return result['score'], result['status'], result['description']
     special = {
         'Strict-Transport-Security': lambda: analyze_hsts([header_value], 'https://header-only.invalid'),
         'Content-Security-Policy': lambda: analyze_csp([header_value]),
         'Set-Cookie': lambda: analyze_cookies([header_value]),
         'X-Frame-Options': lambda: analyze_framing([header_value], []),
+        'Cache-Control': lambda: analyze_cache_control([header_value] if header_value else []),
+        'Clear-Site-Data': lambda: analyze_clear_site_data([header_value] if header_value else [], 'https://header-only.invalid'),
     }
     if header_name in special:
         result = special[header_name]()
@@ -196,7 +209,7 @@ def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
 
 def check_security_headers(
     url: str, timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/0.0.5',
+    user_agent: str = 'Security-Header-Checker/0.0.6',
     follow_redirects: bool = True, max_redirects: int = 5,
     verify_ssl: bool = True, *, snapshot=None, http_error=None
 ) -> Dict:
@@ -230,10 +243,15 @@ def check_security_headers(
         'Content-Security-Policy': lambda: analyze_csp(values('Content-Security-Policy')),
         'Set-Cookie': lambda: analyze_cookies(values('Set-Cookie')),
         'X-Frame-Options': lambda: analyze_framing(values('X-Frame-Options'), values('Content-Security-Policy')),
+        'Cache-Control': lambda: analyze_cache_control(values('Cache-Control')),
+        'Clear-Site-Data': lambda: analyze_clear_site_data(values('Clear-Site-Data'), final_url),
     }
+    cors = analyze_cors({name.lower(): values(name) for name in CORS_HEADERS}, values('Vary'))
     for name, config in SECURE_HEADERS.items():
         if name in LEGACY_HEADERS:
             result = analyze_legacy(name, values(name))
+        elif name in cors:
+            result = cors[name]
         elif name in specials:
             result = specials[name]()
         else:
@@ -267,6 +285,10 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
     
     if header_name in LEGACY_HEADERS:
         print(LEGACY_HEADERS[header_name])
+        return
+    if header_name in CONTEXTUAL_HEADERS:
+        print(f"Parsed {header_name}: {header_data.get('parsed', {})}")
+        print('Context-dependent policy; excluded from the security score.')
         return
     if 'findings' in header_data:
         print(f"Parsed {header_name}: {header_data.get('parsed', {})}")
@@ -302,29 +324,13 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
             print("  - strict-origin")
         elif header_name == 'Permissions-Policy':
             print("  - geolocation=(), microphone=()")
-        elif header_name == 'Access-Control-Allow-Origin':
-            print("  - * (allow all origins)")
-            print("  - https://example.com (specific origin)")
-        elif header_name == 'Access-Control-Allow-Methods':
-            print("  - GET, POST, OPTIONS")
-            print("  - GET, POST, PUT, DELETE, OPTIONS")
-        elif header_name == 'Access-Control-Allow-Headers':
-            print("  - Content-Type, Authorization")
-            print("  - Content-Type, Authorization, X-Requested-With")
-        elif header_name == 'Access-Control-Max-Age':
-            print("  - 86400 (24 hours)")
-            print("  - 3600 (1 hour)")
         elif header_name == 'X-Download-Options':
             print("  - noopen")
         elif header_name == 'X-Permitted-Cross-Domain-Policies':
             print("  - none (most secure)")
             print("  - master-only")
-        elif header_name == 'Cache-Control':
-            print("  - no-store, no-cache, must-revalidate")
         elif header_name == 'Set-Cookie':
             print("  - Secure; HttpOnly; SameSite=Strict")
-        elif header_name == 'Clear-Site-Data':
-            print("  - \"cache\", \"cookies\", \"storage\"")
         elif header_name == 'Cross-Origin-Embedder-Policy':
             print("  - require-corp")
         elif header_name == 'Cross-Origin-Opener-Policy':
@@ -354,39 +360,16 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
     elif header_name == 'Permissions-Policy':
         print("  - Controls access to browser features")
         print("  - geolocation=(): Disables geolocation")
-    elif header_name == 'Cache-Control':
-        print("  - no-store: Don't store in any cache")
-        print("  - no-cache: Validate with server before using")
     elif header_name == 'Set-Cookie':
         print("  - Secure: Only sent over HTTPS")
         print("  - HttpOnly: Not accessible via JavaScript")
         print("  - SameSite: Controls cross-site requests")
-    elif header_name == 'Clear-Site-Data':
-        print("  - Clears browser data on logout")
-        print("  - cache: Clears cached resources")
-        print("  - cookies: Clears cookies")
     elif header_name == 'Cross-Origin-Embedder-Policy':
         print("  - require-corp: Requires cross-origin resources to be CORS-enabled")
     elif header_name == 'Cross-Origin-Opener-Policy':
         print("  - same-origin: Isolates browsing context to same origin")
     elif header_name == 'Cross-Origin-Resource-Policy':
         print("  - same-origin: Only same-origin can load the resource")
-    elif header_name == 'Access-Control-Allow-Origin':
-        print("  - Controls which origins can access the resource")
-        print("  - * allows all origins (less secure)")
-        print("  - Specific origin is more secure")
-    elif header_name == 'Access-Control-Allow-Methods':
-        print("  - Specifies allowed HTTP methods for CORS")
-        print("  - GET, POST, OPTIONS are common")
-        print("  - Include only necessary methods")
-    elif header_name == 'Access-Control-Allow-Headers':
-        print("  - Specifies allowed headers in CORS requests")
-        print("  - Content-Type and Authorization are common")
-        print("  - X-Requested-With for AJAX detection")
-    elif header_name == 'Access-Control-Max-Age':
-        print("  - Caches preflight response for specified seconds")
-        print("  - Reduces number of preflight requests")
-        print("  - 86400 seconds (24 hours) is common")
     elif header_name == 'X-Download-Options':
         print("  - Prevents IE from executing downloaded files")
         print("  - noopen value prevents automatic execution")
@@ -426,26 +409,6 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         print("    Header always set Permissions-Policy \"geolocation=(), microphone=()\"")
         print("  Nginx:")
         print("    add_header Permissions-Policy \"geolocation=(), microphone=()\" always;")
-    elif header_name == 'Access-Control-Allow-Origin':
-        print("  Apache:")
-        print("    Header always set Access-Control-Allow-Origin \"*\"")
-        print("  Nginx:")
-        print("    add_header Access-Control-Allow-Origin \"*\" always;")
-    elif header_name == 'Access-Control-Allow-Methods':
-        print("  Apache:")
-        print("    Header always set Access-Control-Allow-Methods \"GET, POST, OPTIONS\"")
-        print("  Nginx:")
-        print("    add_header Access-Control-Allow-Methods \"GET, POST, OPTIONS\" always;")
-    elif header_name == 'Access-Control-Allow-Headers':
-        print("  Apache:")
-        print("    Header always set Access-Control-Allow-Headers \"Content-Type, Authorization\"")
-        print("  Nginx:")
-        print("    add_header Access-Control-Allow-Headers \"Content-Type, Authorization\" always;")
-    elif header_name == 'Access-Control-Max-Age':
-        print("  Apache:")
-        print("    Header always set Access-Control-Max-Age \"86400\"")
-        print("  Nginx:")
-        print("    add_header Access-Control-Max-Age \"86400\" always;")
     elif header_name == 'X-Download-Options':
         print("  Apache:")
         print("    Header always set X-Download-Options \"noopen\"")
@@ -456,22 +419,12 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         print("    Header always set X-Permitted-Cross-Domain-Policies \"none\"")
         print("  Nginx:")
         print("    add_header X-Permitted-Cross-Domain-Policies \"none\" always;")
-    elif header_name == 'Cache-Control':
-        print("  Apache:")
-        print("    Header always set Cache-Control \"no-store, no-cache, must-revalidate\"")
-        print("  Nginx:")
-        print("    add_header Cache-Control \"no-store, no-cache, must-revalidate\" always;")
     elif header_name == 'Set-Cookie':
         print("  Express.js:")
         print("    res.cookie('session', 'abc123', { secure: true, httpOnly: true, sameSite: 'strict' })")
         print("  Django:")
         print("    SESSION_COOKIE_SECURE = True")
         print("    SESSION_COOKIE_HTTPONLY = True")
-    elif header_name == 'Clear-Site-Data':
-        print("  Apache:")
-        print("    Header always set Clear-Site-Data \"\\\"cache\\\", \\\"cookies\\\", \\\"storage\\\"\"")
-        print("  Nginx:")
-        print("    add_header Clear-Site-Data \"\\\"cache\\\", \\\"cookies\\\", \\\"storage\\\"\" always;")
     elif header_name == 'Cross-Origin-Embedder-Policy':
         print("  Apache:")
         print("    Header always set Cross-Origin-Embedder-Policy \"require-corp\"")

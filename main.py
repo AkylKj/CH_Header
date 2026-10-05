@@ -8,9 +8,9 @@ from src.exporter import export_results
 from src.header_checker import print_verbose_header_info
 from src.recommendations import SecurityRecommendations
 
-VERSION = '0.0.5'
+VERSION = '0.0.6'
 LIMITATIONS = ('Scores are project heuristics, not a security standard or a full audit. '
-               'CSP/HSTS/cookies and framing use structured rules; combined CSP scoring is excluded. Legacy informational headers earn no points. Other headers still use basic matching.')
+               'CSP/HSTS/cookies, framing, CORS, caching and data clearing use structured rules; combined CSP scoring is excluded. Legacy headers and contextual CORS/cache/clearing checks earn no points. Other headers still use basic matching.')
 
 
 def positive_int(value):
@@ -156,7 +156,9 @@ def main(argv=None):
             print(f'{name}: {summary[name]}')
         if check_headers:
             average = summary['average_header_score']
-            print(f"Average header score: {average:.1f}" if average is not None else 'Average header score: N/A')
+            print(f"Average absolute header score: {average:.1f}" if average is not None else 'Average absolute header score: N/A')
+            percentage = summary['average_header_percentage']
+            print(f"Average header percentage: {percentage:.1f}%" if percentage is not None else 'Average header percentage: N/A')
             print(f"Best sites: {summary['best_sites']}")
             print(f"Worst sites: {summary['worst_sites']}")
         if check_ssl:

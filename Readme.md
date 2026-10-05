@@ -3,7 +3,7 @@
 > Powerful CLI tool for analyzing website security headers
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/Version-0.0.5-orange.svg)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/Version-0.0.6-orange.svg)](ROADMAP.md)
 
 [Русский](README.ru.md) | [English](Readme.md)
 
@@ -32,7 +32,7 @@ python main.py --file urls.txt --parallel 5
 python main.py https://example.com --ssl-check --response-analysis
 ```
 
-## v0.0.5: installation and behavior
+## v0.0.6: installation and behavior
 
 Target support: Python 3.10–3.14. Use an isolated environment:
 
@@ -56,7 +56,8 @@ are exported even when one module fails. Exit codes: 0 for successful checks
 and export, 1 for check/export failures, 2 for invalid arguments.
 
 Scores are project heuristics, not an industry standard or a full audit.
-CSP/HSTS/cookies use structured rules; other headers still use basic matching. UNKNOWN TLS probes are inconclusive;
+CSP/HSTS/cookies, framing, CORS, Cache-Control and Clear-Site-Data use structured
+rules; other headers still use basic matching. UNKNOWN TLS probes are inconclusive;
 only the negotiated cipher suite is inspected. Untrusted certificate details
 may be displayed without granting verified status.
 
@@ -71,7 +72,50 @@ python main.py https://example.com --follow-redirects --verbose --output report.
 ```
 
 Only changes, links, version references and diff formatting were reviewed for
-v0.0.5. Automated tests and runtime checks were not run at the user's request.
+v0.0.6. Automated tests and runtime checks were not run at the user's request.
+
+## Changes in 0.0.6
+
+**Contextual HTTP rules:** CORS, Cache-Control and Clear-Site-Data are parsed
+structurally, including separate repeated fields. Their purpose cannot be
+established from one response: all seven records have score=0 and applicable=false.
+Absence is INFO, syntax errors are BAD, and ambiguity/limitations are WARNING.
+Findings remain visible in CLI, TXT, JSON and CSV regardless of scoring.
+The previous combined weight of 15 is removed from the denominator; percentages
+are not directly comparable with older releases. Other scoring rules are unchanged.
+
+CORS accepts one HTTP(S) origin, `null` or `*`, validates tokens, credentials and
+preflight lifetimes, and explains wildcard/credential restrictions. Repeated
+single-value fields are ambiguous (Allow-Origin is BAD); repeated lists are merged.
+Allow-Credentials is informational and accepts only case-sensitive `true`.
+No Origin or preflight request is sent, so actual CORS behavior, reflected origins
+and successful credentialed sharing are not verified. `Vary: Origin` advice is
+conditional; its absence alone is not an error.
+
+Cache-Control parsing respects quoted commas and escapes, preserves unknown
+extensions, validates arguments, and flags repeated numeric directives or
+public/private ambiguity. `no-cache` permits storage with validation, `no-store`
+forbids storage, and `private` still permits browser caching. Public caching is
+not inherently a security failure; data sensitivity is unknown. Numeric values
+longer than 100 digits are rejected as a parser limit.
+
+Clear-Site-Data accepts quoted types `cache`, `cookies`, `storage`,
+`executionContexts` and `*`; unknown types are retained with a warning. HTTPS and
+potentially trustworthy local HTTP origins are distinguished from ordinary HTTP.
+Browser support/execution and logout intent are not verified; absence is optional,
+and no advice is given to clear data on every response.
+
+**Bulk ranking:** best/worst sites are ordered by the unrounded score/max_score
+ratio, preserving input order for ties. Worst sites are listed from lowest upward.
+Failed header analyses and results with no applicable score are excluded.
+`average_header_score` retains its absolute-point meaning; the new
+`average_header_percentage` is the mean of individual unrounded percentages.
+Both are shown with explicit labels, or N/A (`null` in JSON) if none are available.
+A failure in another module does not discard a successful header assessment.
+
+No new CLI flags, requests or dependencies were added. Existing CSV columns and
+library interfaces are preserved. Only source, diff, versions and documentation
+were reviewed; no program, tests, linters or compilation were run for v0.0.6.
 
 ## Changes in 0.0.5
 
@@ -117,9 +161,10 @@ user's request.
 | **Permissions-Policy** | Browser features access control | 4 |
 | **Server** | Web server information | 2 |
 | **X-Powered-By** | Site technologies | 2 |
-| **Cache-Control** | Caching policy | 3 |
+| **Access-Control-Allow-Origin / Methods / Headers / Max-Age / Credentials** | Contextual CORS diagnostics | — |
+| **Cache-Control** | Contextual caching diagnostics | — |
 | **Set-Cookie** | Cookie security | 4 |
-| **Clear-Site-Data** | Data clearing policy | 3 |
+| **Clear-Site-Data** | Optional data-clearing diagnostics | — |
 | **Cross-Origin-Embedder-Policy** | Cross-origin embedder policy | 3 |
 | **Cross-Origin-Opener-Policy** | Cross-origin opener policy | 3 |
 | **Cross-Origin-Resource-Policy** | Cross-origin resource policy | 3 |

@@ -105,13 +105,34 @@ were reviewed. The program, tests and runtime checks were not run, at the user's
 request. Rule-set/scoring-model versioning was explicitly excluded. These changes
 are approved by the user for a local commit; no push or release publication is planned.
 
+### v0.0.6 — Contextual HTTP rules and normalized bulk ranking
+
+- [x] Structured CORS origin, credentials, token-list and Max-Age diagnostics
+- [x] Preserve repeated fields; merge CORS lists and flag ambiguous single values
+- [x] Conditional wildcard/credentials and Vary: Origin explanations, without active probes
+- [x] Quote/escape-aware Cache-Control parsing and argument validation
+- [x] Preserve cache extensions and flag repeated numeric/public-private ambiguity
+- [x] Explain no-cache, no-store and private without assuming data sensitivity
+- [x] Quoted Clear-Site-Data types, unknown types and final-origin trust context
+- [x] Exclude all seven contextual records from scoring, removing their former 15 points
+- [x] Contextual recommendations and findings in existing CLI/TXT/JSON/CSV output
+- [x] Rank best/worst sites by unrounded score/max_score, preserving input order for ties
+- [x] Keep average_header_score; add average_header_percentage and labelled N/A output
+- [x] Version 0.0.6 in CLI, User-Agent and both READMEs
+
+Only source, diff, version references and documentation were reviewed. No program,
+tests, linters or compilation were run at the user's request. Test infrastructure
+remains absent. The user approved a local commit of these changes. No push or
+release publication was performed.
+
 ## Future work
 
 ### 1. Analysis quality — high priority
 
 - [ ] Model the combined enforcement of multiple CSP policies
 - [ ] Browser/content-aware validation of CSP nonces, hashes and source lists
-- [ ] Contextual CORS, Cache-Control and cross-origin header rules
+- [x] Contextual CORS, Cache-Control and Clear-Site-Data diagnostics (v0.0.6)
+- [ ] Contextual cross-origin isolation rules and active CORS verification
 - [ ] HTML / API / static-resource profiles
 - [ ] Version the rule set and scoring model — excluded from v0.0.5 by request
 - [ ] More detailed certificate chain, key, algorithm and SAN inspection
@@ -155,7 +176,7 @@ and aiohttp will not be added without a concrete use case.
 
 Target Python versions: 3.10–3.14. Runtime dependencies: requests, colorama and
 cryptography. Standard-library components include argparse, ssl and
-concurrent.futures. No new dependencies are required by v0.0.5.
+concurrent.futures. No new dependencies are required by v0.0.6.
 
 HSTS has a maximum of 10 points, CSP 15 and cookies 4. Checks marked INFO with
 applicable=false are excluded from the denominator. Percentages across different
@@ -187,7 +208,22 @@ multiple allowed redirects; the final response body is not read. Transport error
 are recorded in all selected HTTP modules without a second fetch. Standalone
 library calls retain their URL-based interface and fetch once per explicit call.
 
-TLS behavior is unchanged in v0.0.5. UNKNOWN probes depend on client/network
+CORS, Cache-Control and Clear-Site-Data use structured diagnostics with score=0
+and applicable=false, including when their syntax is invalid. Their former total
+weight of 15 is excluded. Missing optional policies are INFO; syntax errors are
+BAD; ambiguities and limitations are WARNING. Findings remain in every report.
+The tool sends no Origin or preflight, does not know data sensitivity/logout
+intent, and cannot confirm browser data clearing. Cache-Control and Clear-Site-Data
+lists respect quoted commas and escapes. Numeric arguments are limited to 100
+digits. Other scored headers retain basic matching.
+
+Bulk ranking uses unrounded score/max_score rather than absolute points. Both
+best and worst lists preserve input order for ties; worst lists run lowest first.
+Only successful header analyses with max_score > 0 participate, even if another
+module failed. average_header_score remains absolute; average_header_percentage
+averages the individual unrounded percentages. Both are null/N/A when unavailable.
+
+TLS behavior is unchanged in v0.0.6. UNKNOWN probes depend on client/network
 capabilities and do not establish lack of server support. Only the negotiated
 cipher is inspected. The TLS scale has a maximum of 95, and incomplete probe
 results are labelled Incomplete.
@@ -197,7 +233,10 @@ results are labelled Incomplete.
 - [CSP Level 3](https://www.w3.org/TR/CSP3/)
 - [MDN: Strict-Transport-Security](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security)
 - [MDN: Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)
+- [Fetch Standard: CORS syntax](https://fetch.spec.whatwg.org/#http-new-header-syntax)
+- [RFC 9111: Cache-Control](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2)
+- [Clear Site Data](https://www.w3.org/TR/clear-site-data/)
 
 Last updated: October 5, 2026
-Project version: 0.0.5
-Roadmap version: 1.6
+Project version: 0.0.6
+Roadmap version: 1.7
