@@ -84,7 +84,26 @@ not validate v0.0.4. Local v0.0.3 commits exist; no push or release was publishe
 Implementation has been reviewed by reading changes and checking diff formatting,
 version references and documentation links. No automated tests or runtime checks
 were created or run for v0.0.4, at the user's request. Test infrastructure remains
-absent. The user approved a local commit. No push or release publication is authorized.
+absent. A local v0.0.4 commit was created; no push or release was published.
+
+### v0.0.5 — Effective framing protection and shared HTTP response
+
+- [x] Account for enforced CSP frame-ancestors in the existing X-Frame-Options assessment
+- [x] Exact XFO value matching and consistent handling of duplicate/conflicting values
+- [x] Guaranteed framing restriction from an enforced policy without claiming a complete CSP intersection
+- [x] Remove X-Requested-With and X-UA-Compatible from the core rating
+- [x] Revisit X-XSS-Protection: informational only, no enable-filter recommendations
+- [x] Keep all three legacy headers in reports as INFO with applicable=false
+- [x] Reuse one detached HTTP response for header and response analysis
+- [x] Preserve repeated header values, final URL, status, header timing and redirect chain
+- [x] Share transport errors without retrying; keep analysis errors and TLS independent
+- [x] Preserve CLI options, report fields and CSV columns; add response final_url
+- [x] Version 0.0.5 in CLI, User-Agent and both READMEs
+
+Only source changes, documentation links, version references and diff formatting
+were reviewed. The program, tests and runtime checks were not run, at the user's
+request. Rule-set/scoring-model versioning was explicitly excluded. These changes
+are approved by the user for a local commit; no push or release publication is planned.
 
 ## Future work
 
@@ -93,18 +112,14 @@ absent. The user approved a local commit. No push or release publication is auth
 - [ ] Model the combined enforcement of multiple CSP policies
 - [ ] Browser/content-aware validation of CSP nonces, hashes and source lists
 - [ ] Contextual CORS, Cache-Control and cross-origin header rules
-- [ ] Account for CSP frame-ancestors in framing-protection assessment
 - [ ] HTML / API / static-resource profiles
-- [ ] Remove X-Requested-With and X-UA-Compatible from the core rating
-- [ ] Revisit obsolete headers and X-XSS-Protection recommendations
-- [ ] Version the rule set and scoring model
+- [ ] Version the rule set and scoring model — excluded from v0.0.5 by request
 - [ ] More detailed certificate chain, key, algorithm and SAN inspection
 - [ ] Broader TLS assessment using an established external engine
 
 ### 2. Reliability and documentation — high priority
 
 - [ ] Retry/backoff and rate limiting
-- [ ] Reuse one HTTP response for header and response analysis
 - [ ] Detailed interpretation guide and FAQ
 - [ ] More report and server-configuration examples
 - [ ] Reintroduce automated validation and CI only if explicitly requested
@@ -140,7 +155,7 @@ and aiohttp will not be added without a concrete use case.
 
 Target Python versions: 3.10–3.14. Runtime dependencies: requests, colorama and
 cryptography. Standard-library components include argparse, ssl and
-concurrent.futures. No new dependencies are required by v0.0.4.
+concurrent.futures. No new dependencies are required by v0.0.5.
 
 HSTS has a maximum of 10 points, CSP 15 and cookies 4. Checks marked INFO with
 applicable=false are excluded from the denominator. Percentages across different
@@ -151,13 +166,28 @@ policies are parsed separately; their combined effect is not scored. Policy-leve
 findings for those policies are observations, not a conclusion about the complete
 response. Report-only policies never earn enforcement points. Nonce randomness,
 hash-to-content matching and page functionality are not verified. X-Frame-Options
-scoring is unchanged. Other headers still use basic matching.
+assessment now represents effective CSP frame-ancestors or fallback XFO protection,
+with one 8-point maximum. Report-only and default-src do not provide an ancestor
+restriction. Empty lists, none/self and specific HTTP(S) sources earn 8; broad
+scheme/wildcard lists earn 4; invalid values earn 0. A restrictive enforced policy
+provides a guaranteed bound even when other policies are present. The full CSP
+intersection is still not modelled. Other scored headers still use basic matching.
 
 Cookies are assessed only from the final response; their application purpose is
 unknown. Lack of HttpOnly is a contextual warning. Absence of cookies and valid
 deletion cookies are not security failures.
 
-TLS behavior is unchanged in v0.0.4. UNKNOWN probes depend on client/network
+X-Requested-With, X-UA-Compatible and X-XSS-Protection are informational, with
+zero score and applicable=false whether present or missing. Their previous total
+weight of 7 is no longer included in the denominator. Existing scores and
+percentages should not be compared directly to earlier versions.
+
+Both HTTP analyzers use the same detached snapshot. One GET operation can include
+multiple allowed redirects; the final response body is not read. Transport errors
+are recorded in all selected HTTP modules without a second fetch. Standalone
+library calls retain their URL-based interface and fetch once per explicit call.
+
+TLS behavior is unchanged in v0.0.5. UNKNOWN probes depend on client/network
 capabilities and do not establish lack of server support. Only the negotiated
 cipher is inspected. The TLS scale has a maximum of 95, and incomplete probe
 results are labelled Incomplete.
@@ -169,5 +199,5 @@ results are labelled Incomplete.
 - [MDN: Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)
 
 Last updated: October 5, 2026
-Project version: 0.0.4
-Roadmap version: 1.5
+Project version: 0.0.5
+Roadmap version: 1.6

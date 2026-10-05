@@ -3,7 +3,7 @@
 > Powerful CLI tool for analyzing website security headers
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/Version-0.0.4-orange.svg)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/Version-0.0.5-orange.svg)](ROADMAP.md)
 
 [Русский](README.ru.md) | [English](Readme.md)
 
@@ -32,7 +32,7 @@ python main.py --file urls.txt --parallel 5
 python main.py https://example.com --ssl-check --response-analysis
 ```
 
-## v0.0.4: installation and behavior
+## v0.0.5: installation and behavior
 
 Target support: Python 3.10–3.14. Use an isolated environment:
 
@@ -71,7 +71,38 @@ python main.py https://example.com --follow-redirects --verbose --output report.
 ```
 
 Only changes, links, version references and diff formatting were reviewed for
-v0.0.4. Automated tests and runtime checks were not run at the user's request.
+v0.0.5. Automated tests and runtime checks were not run at the user's request.
+
+## Changes in 0.0.5
+
+**Framing protection:** the existing X-Frame-Options record now assesses enforced
+CSP frame-ancestors or fallback XFO. Its original value is retained; parsed.source
+identifies the effective control. The maximum remains 8: empty lists/none/self
+and specific HTTP(S) sources earn 8, broad schemes/wildcards earn 4, and invalid
+values earn 0. Another policy cannot weaken a restrictive enforced policy; the
+complete intersection is not computed. Report-Only and default-src do not replace
+frame-ancestors. XFO cannot bypass an enforced frame-ancestors directive.
+
+Without enforced frame-ancestors, only exact DENY/SAMEORIGIN values earn credit.
+Identical repeated values are accepted; conflicting values receive no credit.
+
+**Informational headers:** X-Requested-With, X-UA-Compatible and X-XSS-Protection
+remain in reports as INFO, with zero score and applicable=false. Presence and
+absence have no rating impact. Their former combined weight of 7 is removed
+from the denominator. X-XSS-Protection: 0 is not a weakness; the tool no longer
+recommends enabling the deprecated browser XSS filter.
+
+**Shared HTTP response:** header and response analysis use one detached snapshot
+with separate repeated values, final URL, status, time to receive headers and
+redirect chain. One GET operation can include allowed redirects; the final body
+is not read. Transport failures are recorded in each selected HTTP module without
+fetching again. Analysis failures and TLS remain independent. Response results
+now include final_url; existing CLI options and CSV columns are preserved.
+
+Rule-set/scoring-model versioning was not added. Percentages across releases
+are not directly comparable. Only source, links, version references and diff
+formatting were reviewed; the program and tests were not run for v0.0.5 at the
+user's request.
 
 ## 📋 Supported Headers
 
@@ -79,9 +110,9 @@ v0.0.4. Automated tests and runtime checks were not run at the user's request.
 |--------|-------------|-------|
 | **Strict-Transport-Security** | Enforces HTTPS usage | 10 |
 | **Content-Security-Policy** | XSS and injection protection | 15 |
-| **X-Frame-Options** | Clickjacking protection | 8 |
+| **X-Frame-Options** | Effective CSP or XFO framing protection | 8 |
 | **X-Content-Type-Options** | Prevents MIME-sniffing | 5 |
-| **X-XSS-Protection** | XSS attack protection | 5 |
+| **X-XSS-Protection** | Deprecated filter, informational only | — |
 | **Referrer-Policy** | Controls referrer information | 3 |
 | **Permissions-Policy** | Browser features access control | 4 |
 | **Server** | Web server information | 2 |

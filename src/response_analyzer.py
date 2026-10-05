@@ -1,7 +1,8 @@
 import requests
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from time import perf_counter
+from .http_client import fetch_response
+from .header_rules import LEGACY_HEADERS
 
 class ResponseAnalyzer:
     def __init__(self):
@@ -39,9 +40,11 @@ class ResponseAnalyzer:
     
     def analyze_response_headers(self, url: str, timeout: int = 10, 
                                user_agent: str = None, follow_redirects: bool = True,
-                               max_redirects: int = 5, verify_ssl: bool = True) -> Dict:
+                               max_redirects: int = 5, verify_ssl: bool = True, *,
+                               snapshot=None, http_error=None) -> Dict:
         result = {
             'url': url,
+            'final_url': None,
             'timestamp': datetime.now().isoformat(),
             'success': False,
             'status_code': None,
@@ -54,33 +57,27 @@ class ResponseAnalyzer:
             'error': None
         }
         
+        if http_error is not None:
+            result['error'] = http_error
+            return result
         try:
-            # Prepare request headers
-            headers = {}
-            if user_agent:
-                headers['User-Agent'] = user_agent
-            
-            start_time = perf_counter()
-            with requests.Session() as session:
-                session.max_redirects = max_redirects
-                with session.get(url, headers=headers, timeout=timeout,
-                                 allow_redirects=follow_redirects,
-                                 verify=verify_ssl, stream=True) as response:
-                    result['response_time'] = perf_counter() - start_time
-                    result['status_code'] = response.status_code
-                    result['status_message'] = self.status_codes.get(
-                        response.status_code, 'Unknown status code')
-                    self._analyze_headers(response.headers, result)
-                    result['redirect_chain'] = [
-                        {'url': resp.url, 'status_code': resp.status_code,
-                         'status_message': self.status_codes.get(resp.status_code, 'Unknown')}
-                        for resp in response.history
-                    ] if follow_redirects else []
-                    result['success'] = True
+            if snapshot is None:
+                snapshot = fetch_response(url, timeout=timeout, user_agent=user_agent,
+                                          follow_redirects=follow_redirects,
+                                          max_redirects=max_redirects, verify_ssl=verify_ssl)
+            result['final_url'] = snapshot.final_url
+            result['response_time'] = snapshot.response_time
+            result['status_code'] = snapshot.status_code
+            result['status_message'] = self.status_codes.get(snapshot.status_code, 'Unknown status code')
+            self._analyze_headers(snapshot, result)
+            result['redirect_chain'] = [
+                dict(item, status_message=self.status_codes.get(item['status_code'], 'Unknown'))
+                for item in snapshot.redirect_chain
+            ]
+            result['success'] = True
+        except requests.exceptions.RequestException as exc:
+            result['error'] = f'{type(exc).__name__}: {exc}'
 
-        except requests.exceptions.RequestException as e:
-            result['error'] = f'{type(e).__name__}: {e}'
-        
         return result
     
     def _analyze_headers(self, headers: Dict, result: Dict):
@@ -119,6 +116,10 @@ class ResponseAnalyzer:
                     'value': None,
                     'present': False
                 }
+            if header in LEGACY_HEADERS:
+                result['security_headers'][header].update(
+                    status='INFO', score=0, applicable=False,
+                    description=LEGACY_HEADERS[header])
         
         # Additional interesting headers
         additional_headers = [

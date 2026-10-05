@@ -2,7 +2,9 @@
 import requests
 from colorama import Fore, Style
 from typing import Dict, Tuple
-from .header_rules import analyze_csp, analyze_hsts, analyze_cookies
+from .header_rules import (analyze_csp, analyze_hsts, analyze_cookies,
+                           analyze_framing, analyze_legacy, LEGACY_HEADERS)
+from .http_client import HeaderSnapshot, fetch_response
 
 SECURE_HEADERS = {
     'Strict-Transport-Security': {
@@ -18,7 +20,7 @@ SECURE_HEADERS = {
         'type': 'presence'
     },
     'X-Frame-Options': {
-        'description': 'Protection against clickjacking',
+        'description': 'Effective framing restriction via enforced CSP or XFO',
         'good_values': ['DENY', 'SAMEORIGIN'],
         'score': 8,
         'type': 'presence'
@@ -30,10 +32,10 @@ SECURE_HEADERS = {
         'type': 'presence'
     },
     'X-XSS-Protection': {
-        'description': 'Protection against XSS attacks',
-        'good_values': ['1', '1; mode=block'],
-        'score': 5,
-        'type': 'presence'
+        'description': 'Deprecated browser XSS filtering (informational only)',
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'Referrer-Policy': {
         'description': 'Controls the information sent in the Referer header',
@@ -84,16 +86,16 @@ SECURE_HEADERS = {
         'type': 'presence'
     },
     'X-Requested-With': {
-        'description': 'Identifies AJAX requests',
-        'good_values': ['XMLHttpRequest'],
-        'score': 1,
-        'type': 'presence'
+        'description': 'AJAX request convention (informational only)',
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'X-UA-Compatible': {
-        'description': 'Browser compatibility mode',
-        'good_values': ['IE=edge', 'chrome=1'],
-        'score': 1,
-        'type': 'presence'
+        'description': 'Legacy browser compatibility (informational only)',
+        'good_values': [],
+        'score': 0,
+        'type': 'informational'
     },
     'Server': {
         'description': 'Information about web server (should be hidden for security)',
@@ -145,34 +147,16 @@ SECURE_HEADERS = {
     }
 }
 
-class HeaderSnapshot(requests.structures.CaseInsensitiveDict):
-    """Mapping-compatible snapshot with repeated values and response URL."""
-    def __init__(self, response):
-        super().__init__(response.headers)
-        self.final_url = response.url
-        self.values_by_name = {}
-        raw_headers = response.raw.headers
-        for name in raw_headers:
-            self.values_by_name[name.lower()] = list(raw_headers.getlist(name))
-
-    def get_values(self, name):
-        return self.values_by_name.get(name.lower(), [])
-
-
 def get_headers(
     url: str, timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/0.0.4',
+    user_agent: str = 'Security-Header-Checker/0.0.5',
     follow_redirects: bool = True, max_redirects: int = 5,
     verify_ssl: bool = True
 ) -> Dict[str, str]:
-    """Copy headers, including repeated field values, before closing the response."""
-    with requests.Session() as session:
-        session.max_redirects = max_redirects
-        headers = {'User-Agent': user_agent} if user_agent else {}
-        with session.get(url, timeout=timeout, headers=headers,
-                         allow_redirects=follow_redirects, verify=verify_ssl,
-                         stream=True) as response:
-            return HeaderSnapshot(response)
+    """Compatibility wrapper returning the detached, mapping-compatible snapshot."""
+    return fetch_response(url, timeout=timeout, user_agent=user_agent,
+                          follow_redirects=follow_redirects,
+                          max_redirects=max_redirects, verify_ssl=verify_ssl)
 
 # Analyze headers from the site
 def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
@@ -181,10 +165,14 @@ def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
     if header_name not in SECURE_HEADERS:
         return 0, "INFO", f"Unknown header: {header_name}"
 
+    if header_name in LEGACY_HEADERS:
+        result = analyze_legacy(header_name, [header_value] if header_value else [])
+        return result['score'], result['status'], result['description']
     special = {
         'Strict-Transport-Security': lambda: analyze_hsts([header_value], 'https://header-only.invalid'),
         'Content-Security-Policy': lambda: analyze_csp([header_value]),
         'Set-Cookie': lambda: analyze_cookies([header_value]),
+        'X-Frame-Options': lambda: analyze_framing([header_value], []),
     }
     if header_name in special:
         result = special[header_name]()
@@ -208,17 +196,21 @@ def analyze_header(header_name: str, header_value: str) -> Tuple[int, str, str]:
 
 def check_security_headers(
     url: str, timeout: int = 10,
-    user_agent: str = 'Security-Header-Checker/0.0.4',
+    user_agent: str = 'Security-Header-Checker/0.0.5',
     follow_redirects: bool = True, max_redirects: int = 5,
-    verify_ssl: bool = True
+    verify_ssl: bool = True, *, snapshot=None, http_error=None
 ) -> Dict:
-    try:
-        snapshot = get_headers(url, timeout=timeout, user_agent=user_agent,
-                               follow_redirects=follow_redirects,
-                               max_redirects=max_redirects, verify_ssl=verify_ssl)
-    except requests.exceptions.RequestException as exc:
-        return {'success': False, 'url': url,
-                'error': f'{type(exc).__name__}: {exc}'}
+    """Analyze an existing snapshot or fetch once when called independently."""
+    if http_error is not None:
+        return {'success': False, 'url': url, 'error': http_error}
+    if snapshot is None:
+        try:
+            snapshot = get_headers(url, timeout=timeout, user_agent=user_agent,
+                                   follow_redirects=follow_redirects,
+                                   max_redirects=max_redirects, verify_ssl=verify_ssl)
+        except requests.exceptions.RequestException as exc:
+            return {'success': False, 'url': url,
+                    'error': f'{type(exc).__name__}: {exc}'}
     headers = requests.structures.CaseInsensitiveDict(snapshot)
     final_url = getattr(snapshot, 'final_url', url)
     def values(name):
@@ -237,9 +229,12 @@ def check_security_headers(
         'Strict-Transport-Security': lambda: analyze_hsts(values('Strict-Transport-Security'), final_url),
         'Content-Security-Policy': lambda: analyze_csp(values('Content-Security-Policy')),
         'Set-Cookie': lambda: analyze_cookies(values('Set-Cookie')),
+        'X-Frame-Options': lambda: analyze_framing(values('X-Frame-Options'), values('Content-Security-Policy')),
     }
     for name, config in SECURE_HEADERS.items():
-        if name in specials:
+        if name in LEGACY_HEADERS:
+            result = analyze_legacy(name, values(name))
+        elif name in specials:
             result = specials[name]()
         else:
             if name in headers:
@@ -270,6 +265,9 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
     if not verbose:
         return
     
+    if header_name in LEGACY_HEADERS:
+        print(LEGACY_HEADERS[header_name])
+        return
     if 'findings' in header_data:
         print(f"Parsed {header_name}: {header_data.get('parsed', {})}")
         print(f"Applicable to score: {header_data['applicable']}")
@@ -299,8 +297,6 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
             print("  - SAMEORIGIN (if frames needed)")
         elif header_name == 'X-Content-Type-Options':
             print("  - nosniff")
-        elif header_name == 'X-XSS-Protection':
-            print("  - 1; mode=block")
         elif header_name == 'Referrer-Policy':
             print("  - strict-origin-when-cross-origin")
             print("  - strict-origin")
@@ -323,11 +319,6 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         elif header_name == 'X-Permitted-Cross-Domain-Policies':
             print("  - none (most secure)")
             print("  - master-only")
-        elif header_name == 'X-Requested-With':
-            print("  - XMLHttpRequest")
-        elif header_name == 'X-UA-Compatible':
-            print("  - IE=edge")
-            print("  - IE=edge,chrome=1")
         elif header_name == 'Cache-Control':
             print("  - no-store, no-cache, must-revalidate")
         elif header_name == 'Set-Cookie':
@@ -357,9 +348,6 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
     elif header_name == 'X-Content-Type-Options':
         print("  - nosniff: Prevents MIME type sniffing")
         print("  - Forces browser to use declared Content-Type")
-    elif header_name == 'X-XSS-Protection':
-        print("  - 1: Enables XSS protection")
-        print("  - mode=block: Blocks the page if XSS detected")
     elif header_name == 'Referrer-Policy':
         print("  - Controls what referrer information is sent")
         print("  - strict-origin: Only send origin, not full URL")
@@ -407,15 +395,6 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         print("  - Controls Adobe product cross-domain policies")
         print("  - none: Most secure, no cross-domain access")
         print("  - master-only: Only master policy files allowed")
-    elif header_name == 'X-Requested-With':
-        print("  - Identifies AJAX requests")
-        print("  - XMLHttpRequest is standard value")
-        print("  - Helps server distinguish AJAX from regular requests")
-    elif header_name == 'X-UA-Compatible':
-        print("  - Forces IE to use latest rendering engine")
-        print("  - IE=edge uses latest available version")
-        print("  - chrome=1 enables Chrome Frame if available")
-    
     print(f"\n{Fore.MAGENTA}Examples:{Style.RESET_ALL}")
     if header_name == 'Strict-Transport-Security':
         print("  Apache (.htaccess):")
@@ -437,11 +416,6 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         print("    Header always set X-Content-Type-Options \"nosniff\"")
         print("  Nginx:")
         print("    add_header X-Content-Type-Options \"nosniff\" always;")
-    elif header_name == 'X-XSS-Protection':
-        print("  Apache:")
-        print("    Header always set X-XSS-Protection \"1; mode=block\"")
-        print("  Nginx:")
-        print("    add_header X-XSS-Protection \"1; mode=block\" always;")
     elif header_name == 'Referrer-Policy':
         print("  Apache:")
         print("    Header always set Referrer-Policy \"strict-origin-when-cross-origin\"")
@@ -482,16 +456,6 @@ def print_verbose_header_info(header_name: str, header_data: Dict, verbose: bool
         print("    Header always set X-Permitted-Cross-Domain-Policies \"none\"")
         print("  Nginx:")
         print("    add_header X-Permitted-Cross-Domain-Policies \"none\" always;")
-    elif header_name == 'X-Requested-With':
-        print("  Express.js:")
-        print("    res.setHeader('X-Requested-With', 'XMLHttpRequest')")
-        print("  Django:")
-        print("    response['X-Requested-With'] = 'XMLHttpRequest'")
-    elif header_name == 'X-UA-Compatible':
-        print("  Apache:")
-        print("    Header always set X-UA-Compatible \"IE=edge\"")
-        print("  Nginx:")
-        print("    add_header X-UA-Compatible \"IE=edge\" always;")
     elif header_name == 'Cache-Control':
         print("  Apache:")
         print("    Header always set Cache-Control \"no-store, no-cache, must-revalidate\"")

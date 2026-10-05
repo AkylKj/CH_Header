@@ -4,6 +4,7 @@ Module for generating security recommendations
 
 from typing import Dict, List
 from colorama import Fore, Style
+from .header_rules import LEGACY_HEADERS
 
 class SecurityRecommendations:
     def __init__(self):
@@ -49,13 +50,7 @@ class SecurityRecommendations:
                     "🔧 Prevents MIME type sniffing attacks"
                 ]
             },
-            'X-XSS-Protection': {
-                'missing': [
-                    "❌ X-XSS-Protection header is missing",
-                    "🔧 Add X-XSS-Protection: 1; mode=block",
-                    "📝 Provides additional XSS protection for older browsers"
-                ]
-            },
+
             'Referrer-Policy': {
                 'missing': [
                     "❌ Referrer-Policy header is missing",
@@ -173,23 +168,13 @@ class SecurityRecommendations:
                     "📝 Example: X-Permitted-Cross-Domain-Policies: none"
                 ]
             },
-            'X-Requested-With': {
-                'missing': [
-                    "❌ X-Requested-With header is missing",
-                    "🔧 Add AJAX request identification",
-                    "📝 Example: X-Requested-With: XMLHttpRequest"
-                ]
-            },
-            'X-UA-Compatible': {
-                'missing': [
-                    "❌ X-UA-Compatible header is missing",
-                    "🔧 Add browser compatibility mode",
-                    "📝 Example: X-UA-Compatible: IE=edge"
-                ]
-            }
+
+
         }
     
     def get_recommendations_for_header(self, header_name: str, status: str, value: str) -> List[str]:
+        if header_name in LEGACY_HEADERS:
+            return [LEGACY_HEADERS[header_name]]
         if header_name not in self.recommendations:
             return []
         
@@ -204,6 +189,8 @@ class SecurityRecommendations:
         return []
     
     def get_implementation_examples(self, header_name: str) -> Dict:
+        if header_name in LEGACY_HEADERS:
+            return {}
         examples = {
             'Strict-Transport-Security': {
                 'Apache': [
@@ -291,21 +278,7 @@ class SecurityRecommendations:
                     "SECURE_CONTENT_TYPE_NOSNIFF = True"
                 ]
             },
-            'X-XSS-Protection': {
-                'Apache': [
-                    "Header always set X-XSS-Protection \"1; mode=block\""
-                ],
-                'Nginx': [
-                    "add_header X-XSS-Protection \"1; mode=block\" always;"
-                ],
-                'Express.js': [
-                    "app.use(helmet.xssFilter());"
-                ],
-                'Django': [
-                    "# settings.py",
-                    "SECURE_BROWSER_XSS_FILTER = True"
-                ]
-            },
+
             'Referrer-Policy': {
                 'Apache': [
                     "Header always set Referrer-Policy \"strict-origin-when-cross-origin\""
@@ -401,28 +374,8 @@ class SecurityRecommendations:
                     "app.use(helmet.permittedCrossDomainPolicies());"
                 ]
             },
-            'X-Requested-With': {
-                'Express.js': [
-                    "app.use((req, res, next) => {",
-                    "    res.setHeader('X-Requested-With', 'XMLHttpRequest');",
-                    "    next();",
-                    "});"
-                ],
-                'Django': [
-                    "response['X-Requested-With'] = 'XMLHttpRequest'"
-                ]
-            },
-            'X-UA-Compatible': {
-                'Apache': [
-                    "Header always set X-UA-Compatible \"IE=edge\""
-                ],
-                'Nginx': [
-                    "add_header X-UA-Compatible \"IE=edge\" always;"
-                ],
-                'Express.js': [
-                    "app.use(helmet.ieNoOpen());"
-                ]
-            }
+
+
         }
         
         return examples.get(header_name, {})

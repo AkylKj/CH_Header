@@ -8,9 +8,9 @@ from src.exporter import export_results
 from src.header_checker import print_verbose_header_info
 from src.recommendations import SecurityRecommendations
 
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 LIMITATIONS = ('Scores are project heuristics, not a security standard or a full audit. '
-               'CSP/HSTS/cookies use structured rules; combined CSP policies are excluded from scoring. Other headers still use basic matching.')
+               'CSP/HSTS/cookies and framing use structured rules; combined CSP scoring is excluded. Legacy informational headers earn no points. Other headers still use basic matching.')
 
 
 def positive_int(value):
@@ -79,6 +79,7 @@ def print_site(result, verbose=False):
     if response is not None:
         print('HTTP Response Analysis:')
         if response.get('success'):
+            print(f"Final URL: {response['final_url']}")
             print(f"Status Code: {response['status_code']} - {response['status_message']}")
             print(f"Response Time: {response['response_time']:.3f}s")
             print(f"Server Information: {response['server_info']}")

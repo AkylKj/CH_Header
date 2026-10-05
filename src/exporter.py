@@ -54,6 +54,8 @@ def report_rows(report):
                               'INFO', score['total_score'])
             else:
                 if data.get('success'):
+                    if data.get('final_url'):
+                        yield row('final_url', data['final_url'])
                     yield row('status_code', data['status_code'])
                     yield row('response_time', data['response_time'])
                     for name, detail in data.get('security_headers', {}).items():

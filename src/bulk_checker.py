@@ -5,6 +5,7 @@ from typing import Dict, List
 from urllib.parse import urlsplit
 
 from .header_checker import check_security_headers
+from .http_client import fetch_response
 from .ssl_checker import analyze_ssl_security
 from .response_analyzer import ResponseAnalyzer
 
@@ -47,13 +48,19 @@ class BulkChecker:
         options = dict(timeout=timeout, user_agent=user_agent,
                        follow_redirects=follow_redirects,
                        max_redirects=max_redirects, verify_ssl=verify_ssl)
+        snapshot, http_error = None, None
+        if check_headers or check_response:
+            try:
+                snapshot = fetch_response(url, **options)
+            except Exception as exc:
+                http_error = f'{type(exc).__name__}: {exc}'
         checks = []
         if check_headers:
-            checks.append(('headers', lambda: check_security_headers(url, **options)))
+            checks.append(('headers', lambda: check_security_headers(url, **options, snapshot=snapshot, http_error=http_error)))
         if check_ssl:
             checks.append(('ssl', lambda: analyze_ssl_security(url, timeout)))
         if check_response:
-            checks.append(('response', lambda: ResponseAnalyzer().analyze_response_headers(url, **options)))
+            checks.append(('response', lambda: ResponseAnalyzer().analyze_response_headers(url, **options, snapshot=snapshot, http_error=http_error)))
         for module, run in checks:
             try:
                 value = run()

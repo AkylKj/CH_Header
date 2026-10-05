@@ -1,4 +1,4 @@
-"""Contextual CSP, HSTS and Set-Cookie rules for v0.0.4.
+"""Contextual CSP, HSTS and Set-Cookie rules for v0.0.5.
 
 This is a header configuration heuristic, not a browser or a vulnerability scan.
 """
@@ -304,3 +304,96 @@ def analyze_cookies(values):
     result['cookies'] = cookies
     result['parsed'] = {'count': len(cookies), 'applicable_count': len(applicable)}
     return result
+
+
+LEGACY_HEADERS = {
+    'X-Requested-With': 'A request convention for AJAX identification, not a response security control.',
+    'X-UA-Compatible': 'A legacy browser compatibility setting, not a modern security control.',
+    'X-XSS-Protection': 'Deprecated browser XSS filtering; absence or 0 is not a security weakness. Enabling the filter is not recommended.',
+}
+
+
+def analyze_legacy(name, values):
+    message = LEGACY_HEADERS[name]
+    return detail('\n'.join(values) if values else 'Not found', 0, 'INFO', message,
+                  {'present': bool(values), 'values': values},
+                  [finding('INFO', message)], False)
+
+
+def _ancestor_policy(value, index):
+    sources = None
+    observations = []
+    for part in value.split(';'):
+        tokens = part.strip().split()
+        if tokens and tokens[0].lower() == 'frame-ancestors':
+            if sources is None:
+                sources = tokens[1:]
+            else:
+                observations.append(finding('INFO', f'Policy #{index}: duplicate frame-ancestors; the first occurrence is used.'))
+    if sources is None:
+        return None
+    valid = True
+    broad = False
+    lower = [source.lower() for source in sources]
+    if "'none'" in lower and len(sources) > 1:
+        observations.append(finding('INFO', f'Policy #{index}: none is ignored when mixed with other ancestor sources.'))
+    for source in sources:
+        if source.lower() in ("'none'", "'self'"):
+            continue
+        if SCHEME.fullmatch(source):
+            if source.lower() not in ('http:', 'https:'):
+                valid = False
+            broad = True
+        elif HOST_SOURCE.fullmatch(source):
+            # Bare hosts inherit a scheme. Explicit host schemes must be HTTP(S).
+            if '://' in source and source.split('://', 1)[0].lower() not in ('http', 'https'):
+                valid = False
+            if '*' in source:
+                broad = True
+        else:
+            valid = False
+    score = 0 if not valid else 4 if broad else 8
+    status = 'BAD' if not valid else 'WARNING' if broad else 'GOOD'
+    if not valid:
+        message = f'Policy #{index}: frame-ancestors has invalid or unsupported ancestor sources.'
+        recommendation = "Use frame-ancestors 'none', 'self', or required HTTP(S) origins."
+    elif broad:
+        message = f'Policy #{index}: frame-ancestors permits broad scheme/wildcard sources.'
+        recommendation = 'Restrict framing to required origins.'
+    else:
+        message = f'Policy #{index}: frame-ancestors restricts framing to an explicit set (or denies all).'
+        recommendation = ''
+    observations.append(finding(status, message, recommendation))
+    return {'index': index, 'sources': sources, 'score': score,
+            'status': status, 'findings': observations}
+
+
+def analyze_framing(xfo_values, csp_values):
+    """Score effective framing control once, under the existing XFO record."""
+    policies = []
+    for index, policy in enumerate((part for value in csp_values for part in value.split(',')), 1):
+        result = _ancestor_policy(policy, index)
+        if result is not None:
+            policies.append(result)
+    value = '\n'.join(xfo_values) if xfo_values else 'Not found'
+    if policies:
+        # Any restrictive enforced policy gives a guaranteed bound; other policies
+        # cannot broaden it. This does not compute the complete intersection.
+        best = max(policies, key=lambda policy: policy['score'])
+        observations = [finding('INFO', 'Enforced frame-ancestors takes precedence over X-Frame-Options; default-src and report-only do not provide framing protection.')]
+        observations.extend(item for policy in policies for item in policy['findings'])
+        if len(policies) > 1:
+            observations.append(finding('INFO', 'A restrictive policy provides a guaranteed bound; the full policy intersection is not modelled.'))
+        return detail(value, best['score'], best['status'], 'Effective CSP framing protection.',
+                      {'source': 'Content-Security-Policy', 'policies': policies,
+                       'xfo_values': xfo_values}, observations)
+    # A proxy may combine identical repeated XFO values into a comma-separated field.
+    tokens = [token.strip().upper() for value in xfo_values for token in value.split(',')]
+    valid = bool(tokens) and len(set(tokens)) == 1 and tokens[0] in ('DENY', 'SAMEORIGIN')
+    observations = [finding('GOOD' if valid else 'BAD',
+                           'X-Frame-Options provides framing protection.' if valid else
+                           'No enforced frame-ancestors or valid unambiguous X-Frame-Options protection.',
+                           '' if valid else "Set an enforced frame-ancestors policy or X-Frame-Options: DENY / SAMEORIGIN.")]
+    return detail(value, 8 if valid else 0, 'GOOD' if valid else 'BAD',
+                  'Effective X-Frame-Options framing protection.',
+                  {'source': 'X-Frame-Options', 'values': tokens}, observations)
